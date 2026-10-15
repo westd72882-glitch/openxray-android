@@ -22,7 +22,10 @@ Select the game mode in the launcher and press start. The res/ overlay
 automatically into the mode subfolder — manual copying is not needed.
 
 another forks of this port:
+
 lesad710 telegram channel about openxray-android fork: https://t.me/st_mobile_port
+
+https://stalker-mobile.ru/
 
 thanks: https://github.com/TmLev/xray-16/tree/refs/heads/tmlev/shadow-of-chernobyl
 
