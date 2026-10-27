@@ -97,21 +97,39 @@ jobs:
         with:
           gradle-version: '8.2'
 
-      - name: Debug keystore
+      - name: Restore signing key cache
+        id: keycache
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/openxray-release.jks
+          key: openxray-signing-key-v1
+
+      - name: Create signing key (first run only)
+        if: steps.keycache.outputs.cache-hit != 'true'
         run: |
           mkdir -p ~/.android
-          [ -f ~/.android/debug.keystore ] || keytool -genkey -v -keystore ~/.android/debug.keystore \
-            -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 \
-            -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          keytool -genkeypair -v -keystore ~/.android/openxray-release.jks \
+            -storetype JKS -storepass openxray123 -alias openxray -keypass openxray123 \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=OpenXRay Android, OU=Dev, O=OpenXRay, L=Moscow, C=RU"
 
       - name: Build release APK
         working-directory: android
-        run: gradle assembleRelease --no-daemon
+        run: |
+          gradle assembleRelease --no-daemon \
+            -POXRAY_KEYSTORE="$HOME/.android/openxray-release.jks" \
+            -POXRAY_KEYSTORE_PASS=openxray123 \
+            -POXRAY_KEY_ALIAS=openxray \
+            -POXRAY_KEY_PASS=openxray123
 
-      - name: Collect APK
+      - name: Collect and verify APK
         run: |
           mkdir -p out
-          cp "$(find android/app/build/outputs/apk/release -name '*.apk' | head -1)" out/OpenXRay-Android.apk
+          APK="$(find android/app/build/outputs/apk/release -name '*.apk' ! -name '*unsigned*' | head -1)"
+          echo "APK: $APK"
+          APKSIGNER="$(find $ANDROID_HOME/build-tools -name apksigner | sort | tail -1)"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          cp "$APK" out/OpenXRay-Android.apk
 
       - name: Publish release
         env:
