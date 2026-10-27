@@ -1,0 +1,115 @@
+name: Build APK and Release
+
+# Положите этот файл в .github/workflows/ вашего форка.
+# Он сам применит патчи, соберёт APK и выложит его в Releases.
+
+on:
+  push:
+    paths: ['.github/workflows/build-apk.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Apply patches (Download/Stalker, support button)
+        run: |
+          cat > /tmp/patch.py <<'PYEOF'
+          import sys,os
+          if 'btn_support_dev' in open('android/app/src/main/res/layout/activity_launcher.xml',encoding='utf-8').read():
+              print('already patched'); sys.exit(0)
+          A='android/app/src/main/'
+          p=A+'java/org/openxray/LauncherActivity.java'
+          s=open(p,encoding='utf-8').read()
+          old='new File(Environment.getExternalStorageDirectory(), "OpenXRay").getAbsolutePath();\n        mEditGamePath.setText(mPrefs.getString("game_path", defaultPath));'
+          assert old in s
+          s=s.replace(old,'new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Stalker").getAbsolutePath();\n        mEditGamePath.setText(mPrefs.getString("game_path", defaultPath));')
+          old='        mBtnStartNewGame.setOnClickListener(v -> launchGame(true));'
+          assert old in s
+          s=s.replace(old,'''        View btnSupport = findViewById(R.id.btn_support_dev);
+                  if (btnSupport != null) {
+                      btnSupport.setOnClickListener(v -> {
+                          try {
+                              startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://boosty.to/openxray")));
+                          } catch (Exception ignored) { }
+                      });
+                  }
+                  File defDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Stalker");
+                  if (!defDir.exists()) defDir.mkdirs();
+          '''+old,1)
+          open(p,'w',encoding='utf-8').write(s)
+          p=A+'res/layout/activity_launcher.xml'
+          s=open(p,encoding='utf-8').read()
+          btn='''<Button
+                                  android:id="@+id/btn_support_dev"
+                                  android:layout_width="match_parent"
+                                  android:layout_height="40dp"
+                                  android:layout_marginTop="8dp"
+                                  android:background="@drawable/btn_launch"
+                                  android:text="♥ ПОДДЕРЖАТЬ РАЗРАБОТЧИКА"
+                                  android:textColor="#000000"
+                                  android:textSize="13sp"
+                                  android:textStyle="bold" />
+
+                              <TextView
+                                  android:layout_width="match_parent"
+                                  android:layout_height="wrap_content"
+                                  android:layout_marginTop="6dp"
+                                  android:text="Оригинальные файлы игры (gamedata.db*, папка soc/cs/cop) положите в Download/Stalker. Игра не входит в приложение."
+                                  android:textColor="@color/text_muted"
+                                  android:textSize="11sp" />
+                          '''
+          i=s.index('«Start New Game» launches'); j=s.index('</LinearLayout>',i)
+          s=s[:j]+btn+s[j:]
+          open(p,'w',encoding='utf-8').write(s)
+          print("patched")
+          PYEOF
+          python3 /tmp/patch.py
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install NDK and CMake
+        run: sdkmanager "ndk;27.0.12077973" "cmake;3.22.1"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.2'
+
+      - name: Debug keystore
+        run: |
+          mkdir -p ~/.android
+          [ -f ~/.android/debug.keystore ] || keytool -genkey -v -keystore ~/.android/debug.keystore \
+            -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 \
+            -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Build release APK
+        working-directory: android
+        run: gradle assembleRelease --no-daemon
+
+      - name: Collect APK
+        run: |
+          mkdir -p out
+          cp "$(find android/app/build/outputs/apk/release -name '*.apk' | head -1)" out/OpenXRay-Android.apk
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="build-${{ github.run_number }}"
+          gh release create "$TAG" out/OpenXRay-Android.apk \
+            --repo "${{ github.repository }}" --target "${{ github.sha }}" \
+            --title "OpenXRay Android $TAG" \
+            --notes "Файлы игры не включены. Положите оригинальные файлы S.T.A.L.K.E.R. в Download/Stalker (папки soc / cs / cop)."
