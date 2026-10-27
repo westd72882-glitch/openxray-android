@@ -20,59 +20,25 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Apply patches (Download/Stalker, support button)
-        run: |
-          cat > /tmp/patch.py <<'PYEOF'
-          import sys,os
-          if 'btn_support_dev' in open('android/app/src/main/res/layout/activity_launcher.xml',encoding='utf-8').read():
-              print('already patched'); sys.exit(0)
-          A='android/app/src/main/'
-          p=A+'java/org/openxray/LauncherActivity.java'
-          s=open(p,encoding='utf-8').read()
-          old='new File(Environment.getExternalStorageDirectory(), "OpenXRay").getAbsolutePath();\n        mEditGamePath.setText(mPrefs.getString("game_path", defaultPath));'
-          assert old in s
-          s=s.replace(old,'new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Stalker").getAbsolutePath();\n        mEditGamePath.setText(mPrefs.getString("game_path", defaultPath));')
-          old='        mBtnStartNewGame.setOnClickListener(v -> launchGame(true));'
-          assert old in s
-          s=s.replace(old,'''        View btnSupport = findViewById(R.id.btn_support_dev);
-                  if (btnSupport != null) {
-                      btnSupport.setOnClickListener(v -> {
-                          try {
-                              startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://boosty.to/openxray")));
-                          } catch (Exception ignored) { }
-                      });
-                  }
-                  File defDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Stalker");
-                  if (!defDir.exists()) defDir.mkdirs();
-          '''+old,1)
-          open(p,'w',encoding='utf-8').write(s)
-          p=A+'res/layout/activity_launcher.xml'
-          s=open(p,encoding='utf-8').read()
-          btn='''<Button
-                                  android:id="@+id/btn_support_dev"
-                                  android:layout_width="match_parent"
-                                  android:layout_height="40dp"
-                                  android:layout_marginTop="8dp"
-                                  android:background="@drawable/btn_launch"
-                                  android:text="♥ ПОДДЕРЖАТЬ РАЗРАБОТЧИКА"
-                                  android:textColor="#000000"
-                                  android:textSize="13sp"
-                                  android:textStyle="bold" />
+      # Путь по умолчанию (Download/Stalker), кнопка поддержки и русский
+      # интерфейс теперь лежат прямо в исходниках лаунчера
+      # (android/app/src/main/...), отдельный патч больше не нужен.
 
-                              <TextView
-                                  android:layout_width="match_parent"
-                                  android:layout_height="wrap_content"
-                                  android:layout_marginTop="6dp"
-                                  android:text="Оригинальные файлы игры (gamedata.db*, папка soc/cs/cop) положите в Download/Stalker. Игра не входит в приложение."
-                                  android:textColor="@color/text_muted"
-                                  android:textSize="11sp" />
-                          '''
-          i=s.index('«Start New Game» launches'); j=s.index('</LinearLayout>',i)
-          s=s[:j]+btn+s[j:]
-          open(p,'w',encoding='utf-8').write(s)
-          print("patched")
+      - name: Fix engine UI crash (zero-size vertex lock in CUIFrameLineWnd)
+        run: |
+          python3 - <<'PYEOF'
+          p='src/xrUICore/Windows/UIFrameLineWnd.cpp'
+          s=open(p,encoding='utf-8').read()
+          old='StartPrimitive(6 * total_tiles, IUIRender::ptTriList, UI().m_currentPointType);'
+          new='StartPrimitive(6 * (total_tiles ? total_tiles : 1u), IUIRender::ptTriList, UI().m_currentPointType);'
+          if new in s:
+              print('already patched')
+          else:
+              assert s.count(old)==1, 'pattern not found'
+              open(p,'w',encoding='utf-8').write(s.replace(old,new))
+              print('patched')
           PYEOF
-          python3 /tmp/patch.py
+          grep -n 'total_tiles ? total_tiles' src/xrUICore/Windows/UIFrameLineWnd.cpp
 
       - name: Fix GameSpy for Android (no pthread_cancel in bionic)
         run: |
