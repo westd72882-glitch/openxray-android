@@ -17,8 +17,6 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
-import android.widget.RadioButton;
-import android.widget.RadioGroup;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -39,24 +37,38 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.util.Locale;
 
+/**
+ * Главный экран. Тёмное меню в стиле Зоны: три круглые кнопки справа
+ * (ИГРАТЬ, ВЫБОР ИГРЫ, НАСТРОЙКИ), положение которых можно менять.
+ * «ИГРАТЬ» запускает уже настроенную конфигурацию и открывает главное меню
+ * игры: сложность и новую игру игрок выбирает уже там.
+ */
 public class LauncherActivity extends AppCompatActivity {
 
     private static final String PREFS_NAME = "openxray_launcher_prefs";
     private static final int PERMISSION_REQUEST_CODE = 2001;
     private static final int BROWSE_FOLDER_REQUEST_CODE = 2002;
 
+    private static final String[] MODES = {"soc", "cs", "cop"};
+
+    private SharedPreferences mPrefs;
+    private String mGamePath = "";
+    private String mGameMode = "soc";
+
+    // Главный экран
+    private MenuButtonsLayout mMenuLayer;
+    private View mEditBar;
+    private TextView mTextSelectedGame;
+    private TextView mTextMainStatus;
+    private View mDotStatus;
+
+    // Панель «Выбор игры»
+    private View mPanelGames;
     private EditText mEditGamePath;
-    private Button mBtnBrowsePath;
-    private Button mBtnCheckPath;
-    private Button mBtnViewLogs;
-    private Button mBtnReportBug;
     private TextView mTextPathStatus;
 
-    private RadioGroup mRadioGroupGameMode;
-    private RadioButton mRadioSoc;
-    private RadioButton mRadioCs;
-    private RadioButton mRadioCop;
-
+    // Панель «Настройки»
+    private View mPanelSettings;
     private CheckBox mCheckNoIntro;
     private CheckBox mCheckNoSound;
     private CheckBox mCheckNoShadows;
@@ -77,34 +89,32 @@ public class LauncherActivity extends AppCompatActivity {
 
     private TextView mLabelLookSens;
     private SeekBar mSeekLookSens;
-
     private TextView mLabelTouchOpacity;
     private SeekBar mSeekTouchOpacity;
-
     private TextView mLabelTouchScale;
     private SeekBar mSeekTouchScale;
-
-    private Button mBtnEditTouchLayout;
-
-    private RadioButton mRadioDiffNovice;
-    private RadioButton mRadioDiffStalker;
-    private RadioButton mRadioDiffVeteran;
-    private RadioButton mRadioDiffMaster;
-
-    private Button mBtnStartNewGame;
-    private Button mBtnStartGame;
-
-    private SharedPreferences mPrefs;
+    private TextView mLabelMenuScale;
+    private SeekBar mSeekMenuScale;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            android.view.WindowManager.LayoutParams lp = getWindow().getAttributes();
+            lp.layoutInDisplayCutoutMode =
+                    android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            getWindow().setAttributes(lp);
+        }
         setContentView(R.layout.activity_launcher);
 
         mPrefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         String savedPath = mPrefs.getString("game_path", null);
         AppLog.init(this, savedPath);
         AppLog.i("Launcher", "LauncherActivity onCreate started");
+
+        mGamePath = savedPath != null ? savedPath : defaultGamePath();
+        mGameMode = mPrefs.getString("game_mode", "soc");
+        if (!"cs".equals(mGameMode) && !"cop".equals(mGameMode)) mGameMode = "soc";
 
         initViews();
         loadPreferences();
@@ -114,158 +124,128 @@ public class LauncherActivity extends AppCompatActivity {
         AppLog.i("Launcher", "LauncherActivity onCreate finished");
     }
 
-    /**
-     * A session marker that survived the last run means the process died
-     * (native SIGSEGV/SIGABRT or an uncaught Java exception), because a clean
-     * exit deletes it in OpenXRayActivity.onDestroy. Offer to send the logs to
-     * GitHub before the user can touch anything else.
-     */
-    private void offerCrashReportIfPending() {
-        final CrashReporter.CrashInfo info = CrashReporter.checkPendingCrash(this);
-        if (info == null) return;
-
-        final String full = CrashReporter.buildReport(info, this);
-        StringBuilder msg = new StringBuilder();
-        msg.append(CrashReporter.describeCrash(info));
-        if (info.crashLine != null) {
-            msg.append("\n\n").append(info.crashLine);
-        }
-        msg.append('\n');
-
-        androidx.appcompat.app.AlertDialog.Builder b = new AlertDialog.Builder(this)
-                .setTitle("Previous session ended unexpectedly")
-                .setCancelable(true);
-
-        if (GitHubIssueReporter.isConfigured()) {
-            // One tap: the logs go straight into an issue, no browser, no CAPTCHA.
-            msg.append("\nSend these logs to the GitHub issue tracker?");
-            b.setMessage(msg.toString())
-                .setPositiveButton("Send report", (d, w) -> sendCrashReportToGitHub(info));
-        } else {
-            msg.append("\nAutomatic reporting is not enabled in this build "
-                    + "(no repository token was baked in at compile time).");
-            b.setMessage(msg.toString());
-        }
-        b.setNeutralButton("Copy logs", (d, w) -> copyLogs(full));
-        b.setNegativeButton("Skip", (d, w) -> CrashReporter.consumePendingCrash(this));
-        b.show();
+    private static String defaultGamePath() {
+        File dir = new File(Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_DOWNLOADS), "Stalker");
+        try {
+            if (!dir.exists()) dir.mkdirs();
+        } catch (Exception ignored) {}
+        return dir.getAbsolutePath();
     }
 
-    private void copyLogs(String text) {
-        ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-        if (clipboard != null) {
-            clipboard.setPrimaryClip(ClipData.newPlainText("OpenXRay Logs", text));
-            Toast.makeText(this, "Logs copied to clipboard", Toast.LENGTH_SHORT).show();
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            getWindow().getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_FULLSCREEN
+                            | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
         }
     }
 
-    /** One tap -> one issue. Falls back to a copyable report if it cannot send. */
-    private void sendCrashReportToGitHub(final CrashReporter.CrashInfo info) {
-        sendCrashReportToGitHub(info, true);
-    }
-
-    private void sendCrashReportToGitHub(final CrashReporter.CrashInfo info,
-                                         final boolean consumeOnSuccess) {
-        Toast.makeText(this, "Sending report to GitHub...", Toast.LENGTH_SHORT).show();
-        GitHubIssueReporter.report(info, this, result -> {
-            if (result.success) {
-                Toast.makeText(this, result.duplicate
-                        ? "Appended to an existing issue" : "Issue created", Toast.LENGTH_LONG).show();
-                // Only a real crash report may clear the pending marker: a
-                // diagnostics upload must not silently discard a crash.
-                if (consumeOnSuccess) CrashReporter.consumePendingCrash(this);
-                GitHubIssueReporter.openIssue(this, result.issueUrl);
-            } else {
-                // Network/token trouble must not eat the report: keep the text
-                // reachable so the user can paste it somewhere by hand.
-                Toast.makeText(this, result.error, Toast.LENGTH_LONG).show();
-                offerCrashReportFallback(info);
-            }
-        });
-    }
-
-    private void offerCrashReportFallback(final CrashReporter.CrashInfo info) {
-        final String full = CrashReporter.buildReport(info, this);
-        new AlertDialog.Builder(this)
-                .setTitle("Report not sent")
-                .setMessage("The logs are still available. Copy them and paste them "
-                        + "into a new issue, or share a zip instead.")
-                .setPositiveButton("Retry", (d, w) -> sendCrashReportToGitHub(info, false))
-                .setNeutralButton("Copy logs", (d, w) -> copyLogs(full))
-                .setNegativeButton("Close", null)
-                .show();
-    }
-
-    /**
-     * Manual bug report: the current session's logs, sent to the same issue
-     * tracker with one tap. Always available, whether or not a crash happened.
-     */
-    private void showBugTrackerDialog() {
-        String repo = BuildConfig.GITHUB_REPO;
-        StringBuilder msg = new StringBuilder();
-        msg.append("Report a problem with OpenXRay Android.\n\n");
-        msg.append("Issue tracker: ").append(repo).append('\n');
-        if (GitHubIssueReporter.isConfigured()) {
-            msg.append("\nOne tap sends the engine log, logcat and app log as a new "
-                    + "issue. Nothing else is uploaded.");
-        } else {
-            msg.append("\nAutomatic reporting is not enabled in this build, so you will "
-                    + "get the logs to paste into a new issue by hand.");
+    @Override
+    public void onBackPressed() {
+        if (mMenuLayer != null && mMenuLayer.isEditMode()) {
+            mMenuLayer.setEditMode(false);
+            return;
         }
-
-        androidx.appcompat.app.AlertDialog.Builder b = new AlertDialog.Builder(this)
-                .setTitle("Report a bug")
-                .setMessage(msg.toString())
-                .setNegativeButton("Close", null);
-
-        if (GitHubIssueReporter.isConfigured()) {
-            b.setPositiveButton("Send report", (d, w) ->
-                    sendCrashReportToGitHub(CrashReporter.forCurrentSession(this), false));
+        if (isPanelOpen()) {
+            hidePanels();
+            return;
         }
-        // Falls back to the repository page, so this button is useful whether or
-        // not a token was baked in.
-        b.setNeutralButton("Open tracker", (d, w) -> {
-            try {
-                startActivity(new Intent(Intent.ACTION_VIEW,
-                        Uri.parse("https://github.com/" + repo + "/issues")));
-            } catch (Exception e) {
-                Toast.makeText(this, "Could not open the browser", Toast.LENGTH_SHORT).show();
-            }
-        });
-        // The crash dialog offers "Copy logs", but this manual path only offered
-        // "Send report" or the browser -- so once the crash marker had been
-        // consumed there was no way left to get the report text out at all.
-        // Always keep it reachable, token or no token.
-        b.setNeutralButton("Copy logs", (d, w) ->
-                copyLogs(CrashReporter.buildReport(CrashReporter.forCurrentSession(this), this)));
-        b.show();
+        super.onBackPressed();
+    }
+
+    private boolean isPanelOpen() {
+        return mPanelGames.getVisibility() == View.VISIBLE
+                || mPanelSettings.getVisibility() == View.VISIBLE;
+    }
+
+    private void hidePanels() {
+        mPanelGames.setVisibility(View.GONE);
+        mPanelSettings.setVisibility(View.GONE);
+        savePreferences();
+        hideKeyboard();
+    }
+
+    private void hideKeyboard() {
+        try {
+            android.view.inputmethod.InputMethodManager imm =
+                    (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+            View f = getCurrentFocus();
+            if (imm != null && f != null) imm.hideSoftInputFromWindow(f.getWindowToken(), 0);
+        } catch (Exception ignored) {}
+    }
+
+    private void showGamesPanel() {
+        mPanelSettings.setVisibility(View.GONE);
+        mPanelGames.setVisibility(View.VISIBLE);
+        checkGamePathStatus();
+    }
+
+    private void showSettingsPanel() {
+        mPanelGames.setVisibility(View.GONE);
+        mPanelSettings.setVisibility(View.VISIBLE);
     }
 
     private void initViews() {
+        // ---- Главный экран ----
+        mTextSelectedGame = findViewById(R.id.text_selected_game);
+        mTextMainStatus = findViewById(R.id.text_main_status);
+        mDotStatus = findViewById(R.id.dot_status);
+        mEditBar = findViewById(R.id.edit_bar);
+
+        mMenuLayer = findViewById(R.id.menu_layer);
+        mMenuLayer.setPrefs(mPrefs);
+        mMenuLayer.setScale(mPrefs.getInt("menu_scale", 100) / 100f);
+        mMenuLayer.addMenuButton("play", RoundMenuButton.ICON_PLAY, "ИГРАТЬ", true,
+                0.86f, 0.19f, v -> launchGame());
+        mMenuLayer.addMenuButton("games", RoundMenuButton.ICON_GAMES, "ВЫБОР ИГРЫ", false,
+                0.86f, 0.52f, v -> showGamesPanel());
+        mMenuLayer.addMenuButton("settings", RoundMenuButton.ICON_SETTINGS, "НАСТРОЙКИ", false,
+                0.86f, 0.80f, v -> showSettingsPanel());
+        mMenuLayer.setEditModeListener(editing -> {
+            mEditBar.setVisibility(editing ? View.VISIBLE : View.GONE);
+            if (editing) {
+                mPanelGames.setVisibility(View.GONE);
+                mPanelSettings.setVisibility(View.GONE);
+            }
+        });
+        findViewById(R.id.btn_edit_done).setOnClickListener(v -> mMenuLayer.setEditMode(false));
+        findViewById(R.id.btn_edit_reset).setOnClickListener(v -> {
+            mMenuLayer.resetPositions();
+            Toast.makeText(this, "Расположение сброшено", Toast.LENGTH_SHORT).show();
+        });
+
+        // ---- Панель «Выбор игры» ----
+        mPanelGames = findViewById(R.id.panel_games);
         mEditGamePath = findViewById(R.id.edit_game_path);
-        mBtnBrowsePath = findViewById(R.id.btn_browse_path);
-        mBtnCheckPath = findViewById(R.id.btn_check_path);
-        mBtnViewLogs = findViewById(R.id.btn_view_logs);
-        mBtnReportBug = findViewById(R.id.btn_report_bug);
         mTextPathStatus = findViewById(R.id.text_path_status);
+        mEditGamePath.setText(mGamePath);
+        findViewById(R.id.btn_games_close).setOnClickListener(v -> hidePanels());
+        findViewById(R.id.btn_browse_path).setOnClickListener(v -> openFolderPicker());
+        findViewById(R.id.btn_check_path).setOnClickListener(v -> checkGamePathStatus());
+        findViewById(R.id.card_soc).setOnClickListener(v -> selectGame("soc"));
+        findViewById(R.id.card_cs).setOnClickListener(v -> selectGame("cs"));
+        findViewById(R.id.card_cop).setOnClickListener(v -> selectGame("cop"));
+        mEditGamePath.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override
+            public void afterTextChanged(Editable s) {
+                mGamePath = s.toString().trim();
+                mPrefs.edit().putString("game_path", mGamePath).apply();
+                checkGamePathStatus();
+            }
+        });
 
-        mBtnBrowsePath.setOnClickListener(v -> openFolderPicker());
-        mBtnCheckPath.setOnClickListener(v -> checkGamePathStatus());
-        if (mBtnViewLogs != null) {
-            mBtnViewLogs.setOnClickListener(v -> showLogsDialog());
-        }
-        if (mBtnReportBug != null) {
-            mBtnReportBug.setOnClickListener(v -> showBugTrackerDialog());
-        }
-
-        mRadioGroupGameMode = findViewById(R.id.radiogroup_gamemode);
-        mRadioSoc = findViewById(R.id.radio_soc);
-        mRadioCs = findViewById(R.id.radio_cs);
-        mRadioCop = findViewById(R.id.radio_cop);
-        if (mRadioGroupGameMode != null) {
-            // Each game lives in its own subfolder (soc/cs/cop) — re-check files on switch.
-            mRadioGroupGameMode.setOnCheckedChangeListener((group, checkedId) -> checkGamePathStatus());
-        }
+        // ---- Панель «Настройки» ----
+        mPanelSettings = findViewById(R.id.panel_settings);
+        findViewById(R.id.btn_settings_close).setOnClickListener(v -> hidePanels());
 
         mCheckNoIntro = findViewById(R.id.check_nointro);
         mCheckNoSound = findViewById(R.id.check_nosound);
@@ -284,97 +264,76 @@ public class LauncherActivity extends AppCompatActivity {
 
         mLabelLookSens = findViewById(R.id.label_look_sens);
         mSeekLookSens = findViewById(R.id.seek_look_sens);
-
         mLabelTouchOpacity = findViewById(R.id.label_touch_opacity);
         mSeekTouchOpacity = findViewById(R.id.seek_touch_opacity);
-
         mLabelTouchScale = findViewById(R.id.label_touch_scale);
         mSeekTouchScale = findViewById(R.id.seek_touch_scale);
+        mLabelMenuScale = findViewById(R.id.label_menu_scale);
+        mSeekMenuScale = findViewById(R.id.seek_menu_scale);
 
-        mBtnEditTouchLayout = findViewById(R.id.btn_edit_touch_layout);
-
-        if (mBtnEditTouchLayout != null) {
-            mBtnEditTouchLayout.setOnClickListener(v -> {
-                Intent intent = new Intent(this, ControlLayoutEditorActivity.class);
-                startActivity(intent);
-            });
-        }
-
-        mBtnStartGame = findViewById(R.id.btn_start_game);
-
-        mBtnCheckPath.setOnClickListener(v -> checkGamePathStatus());
-
-        mEditGamePath.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override
-            public void afterTextChanged(Editable s) {
-                checkGamePathStatus();
+        findViewById(R.id.btn_edit_touch_layout).setOnClickListener(v ->
+                startActivity(new Intent(this, ControlLayoutEditorActivity.class)));
+        findViewById(R.id.btn_edit_menu_layout).setOnClickListener(v -> {
+            hidePanels();
+            mMenuLayer.setEditMode(true);
+        });
+        findViewById(R.id.btn_reset_menu_layout).setOnClickListener(v -> {
+            mMenuLayer.resetPositions();
+            Toast.makeText(this, "Расположение сброшено", Toast.LENGTH_SHORT).show();
+        });
+        findViewById(R.id.btn_view_logs).setOnClickListener(v -> showLogsDialog());
+        findViewById(R.id.btn_report_bug).setOnClickListener(v -> showBugTrackerDialog());
+        findViewById(R.id.btn_support_dev).setOnClickListener(v -> {
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://boosty.to/openxray")));
+            } catch (Exception e) {
+                Toast.makeText(this, "Не удалось открыть браузер", Toast.LENGTH_SHORT).show();
             }
         });
 
-        // Seekbar listeners
-        mSeekLookSens.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+        mSeekLookSens.setOnSeekBarChangeListener(new SimpleSeek() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 float val = Math.max(5, progress) / 10.0f;
-                mLabelLookSens.setText(String.format(Locale.US, "Camera sensitivity: %.1fx", val));
+                mLabelLookSens.setText(String.format(Locale.US, "Чувствительность камеры: %.1fx", val));
             }
-            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
-            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
         });
-
-        mSeekTouchOpacity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+        mSeekTouchOpacity.setOnSeekBarChangeListener(new SimpleSeek() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 int val = Math.max(20, progress);
-                mLabelTouchOpacity.setText(String.format(Locale.US, "Button opacity: %d%%", val));
+                mLabelTouchOpacity.setText(String.format(Locale.US, "Прозрачность кнопок: %d%%", val));
             }
-            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
-            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
         });
-
-        mSeekTouchScale.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+        mSeekTouchScale.setOnSeekBarChangeListener(new SimpleSeek() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 int val = Math.max(70, progress);
-                mLabelTouchScale.setText(String.format(Locale.US, "Button size: %d%%", val));
+                mLabelTouchScale.setText(String.format(Locale.US, "Размер кнопок в игре: %d%%", val));
             }
-            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
-            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
         });
+        mSeekMenuScale.setOnSeekBarChangeListener(new SimpleSeek() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                int val = Math.max(60, progress);
+                mLabelMenuScale.setText(String.format(Locale.US, "Размер круглых кнопок: %d%%", val));
+                mMenuLayer.setScale(val / 100f);
+            }
+        });
+    }
 
-        mRadioDiffNovice = findViewById(R.id.radio_diff_novice);
-        mRadioDiffStalker = findViewById(R.id.radio_diff_stalker);
-        mRadioDiffVeteran = findViewById(R.id.radio_diff_veteran);
-        mRadioDiffMaster = findViewById(R.id.radio_diff_master);
-
-        mBtnStartNewGame = findViewById(R.id.btn_start_new_game);
-        mBtnStartGame = findViewById(R.id.btn_start_game);
-
-        mBtnStartNewGame.setOnClickListener(v -> launchGame(true));
-        mBtnStartGame.setOnClickListener(v -> launchGame(false));
+    private abstract static class SimpleSeek implements SeekBar.OnSeekBarChangeListener {
+        @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+        @Override public void onStopTrackingTouch(SeekBar seekBar) {}
     }
 
     private void loadPreferences() {
-        String defaultPath = new File(Environment.getExternalStorageDirectory(), "OpenXRay").getAbsolutePath();
-        mEditGamePath.setText(mPrefs.getString("game_path", defaultPath));
-
-        String mode = mPrefs.getString("game_mode", "soc");
-        if ("cs".equals(mode)) mRadioCs.setChecked(true);
-        else if ("cop".equals(mode)) mRadioCop.setChecked(true);
-        else mRadioSoc.setChecked(true);
-
         mCheckNoIntro.setChecked(mPrefs.getBoolean("nointro", false));
         mCheckNoSound.setChecked(mPrefs.getBoolean("nosound", false));
         mCheckNoShadows.setChecked(mPrefs.getBoolean("noshadows", false));
         mCheckDLights.setChecked(mPrefs.getBoolean("dlights", true));
-        if (mCheckNoSun != null) {
-            mCheckNoSun.setChecked(mPrefs.getBoolean("nosun", false));
-        }
-        if (mCheckFastDxt != null) {
-            mCheckFastDxt.setChecked(mPrefs.getBoolean("fastdxt", true));
-        }
+        mCheckNoSun.setChecked(mPrefs.getBoolean("nosun", false));
+        mCheckFastDxt.setChecked(mPrefs.getBoolean("fastdxt", true));
 
         String savedPreset = mPrefs.getString("graphics_preset", "none");
         int presetIndex = 0;
@@ -384,9 +343,7 @@ public class LauncherActivity extends AppCompatActivity {
                 break;
             }
         }
-        if (mSpinnerGraphicsPreset != null) {
-            mSpinnerGraphicsPreset.setSelection(presetIndex);
-        }
+        mSpinnerGraphicsPreset.setSelection(presetIndex);
 
         if (!mPrefs.getBoolean("custom_args_v2_initialized", false)) {
             String customArgs = mPrefs.getString("custom_args", "");
@@ -403,15 +360,19 @@ public class LauncherActivity extends AppCompatActivity {
 
         int lookSens = mPrefs.getInt("look_sens", 10);
         mSeekLookSens.setProgress(lookSens);
-        mLabelLookSens.setText(String.format(Locale.US, "Camera sensitivity: %.1fx", lookSens / 10.0f));
+        mLabelLookSens.setText(String.format(Locale.US, "Чувствительность камеры: %.1fx", lookSens / 10.0f));
 
         int opacity = mPrefs.getInt("touch_opacity", 60);
         mSeekTouchOpacity.setProgress(opacity);
-        mLabelTouchOpacity.setText(String.format(Locale.US, "Button opacity: %d%%", opacity));
+        mLabelTouchOpacity.setText(String.format(Locale.US, "Прозрачность кнопок: %d%%", opacity));
 
         int scale = mPrefs.getInt("touch_scale", 100);
         mSeekTouchScale.setProgress(scale);
-        mLabelTouchScale.setText(String.format(Locale.US, "Button size: %d%%", scale));
+        mLabelTouchScale.setText(String.format(Locale.US, "Размер кнопок в игре: %d%%", scale));
+
+        int menuScale = mPrefs.getInt("menu_scale", 100);
+        mSeekMenuScale.setProgress(menuScale);
+        mLabelMenuScale.setText(String.format(Locale.US, "Размер круглых кнопок: %d%%", menuScale));
 
         int savedW = mPrefs.getInt("res_width", 0);
         int savedH = mPrefs.getInt("res_height", 0);
@@ -423,148 +384,146 @@ public class LauncherActivity extends AppCompatActivity {
                 break;
             }
         }
-        if (mSpinnerResolution != null) {
-            mSpinnerResolution.setSelection(selectedIndex);
-        }
+        mSpinnerResolution.setSelection(selectedIndex);
 
         String savedBackend = mPrefs.getString("render_backend", "native");
         int backendIndex = 0;
         for (int i = 0; i < mRenderBackendList.size(); i++) {
-            RenderBackendItem item = mRenderBackendList.get(i);
-            if (item.id.equals(savedBackend)) {
+            if (mRenderBackendList.get(i).id.equals(savedBackend)) {
                 backendIndex = i;
                 break;
             }
         }
-        if (mSpinnerRenderBackend != null) {
-            mSpinnerRenderBackend.setSelection(backendIndex);
-            updateRenderBackendStatus();
-        }
-
-        String diff = mPrefs.getString("difficulty", "gd_novice");
-        if ("gd_stalker".equals(diff)) mRadioDiffStalker.setChecked(true);
-        else if ("gd_veteran".equals(diff)) mRadioDiffVeteran.setChecked(true);
-        else if ("gd_master".equals(diff)) mRadioDiffMaster.setChecked(true);
-        else mRadioDiffNovice.setChecked(true);
+        mSpinnerRenderBackend.setSelection(backendIndex);
+        updateRenderBackendStatus();
     }
 
     private void savePreferences() {
-        String mode = "soc";
-        if (mRadioCs.isChecked()) mode = "cs";
-        else if (mRadioCop.isChecked()) mode = "cop";
-
-        String diff = "gd_novice";
-        if (mRadioDiffStalker.isChecked()) diff = "gd_stalker";
-        else if (mRadioDiffVeteran.isChecked()) diff = "gd_veteran";
-        else if (mRadioDiffMaster.isChecked()) diff = "gd_master";
-
         mPrefs.edit()
-            .putString("game_path", mEditGamePath.getText().toString().trim())
-            .putString("game_mode", mode)
-            .putString("difficulty", diff)
+            .putString("game_path", mGamePath)
+            .putString("game_mode", mGameMode)
             .putBoolean("nointro", mCheckNoIntro.isChecked())
             .putBoolean("nosound", mCheckNoSound.isChecked())
             .putBoolean("noshadows", mCheckNoShadows.isChecked())
             .putBoolean("dlights", mCheckDLights.isChecked())
-            .putBoolean("nosun", mCheckNoSun != null && mCheckNoSun.isChecked())
-            .putBoolean("fastdxt", mCheckFastDxt != null && mCheckFastDxt.isChecked())
+            .putBoolean("nosun", mCheckNoSun.isChecked())
+            .putBoolean("fastdxt", mCheckFastDxt.isChecked())
             .putString("custom_args", mEditCustomArgs.getText().toString().trim())
             .putInt("look_sens", Math.max(5, mSeekLookSens.getProgress()))
             .putInt("touch_opacity", Math.max(20, mSeekTouchOpacity.getProgress()))
             .putInt("touch_scale", Math.max(70, mSeekTouchScale.getProgress()))
+            .putInt("menu_scale", Math.max(60, mSeekMenuScale.getProgress()))
             .apply();
 
-        if (mSpinnerResolution != null && mSpinnerResolution.getSelectedItem() instanceof ResolutionItem) {
+        if (mSpinnerResolution.getSelectedItem() instanceof ResolutionItem) {
             ResolutionItem item = (ResolutionItem) mSpinnerResolution.getSelectedItem();
             mPrefs.edit()
                 .putInt("res_width", item.width)
                 .putInt("res_height", item.height)
                 .apply();
         }
-
-        if (mSpinnerRenderBackend != null && mSpinnerRenderBackend.getSelectedItem() instanceof RenderBackendItem) {
+        if (mSpinnerRenderBackend.getSelectedItem() instanceof RenderBackendItem) {
             RenderBackendItem item = (RenderBackendItem) mSpinnerRenderBackend.getSelectedItem();
-            mPrefs.edit()
-                .putString("render_backend", item.id)
-                .apply();
+            mPrefs.edit().putString("render_backend", item.id).apply();
         }
-
-        if (mSpinnerGraphicsPreset != null && mSpinnerGraphicsPreset.getSelectedItem() instanceof GraphicsPresetItem) {
+        if (mSpinnerGraphicsPreset.getSelectedItem() instanceof GraphicsPresetItem) {
             GraphicsPresetItem item = (GraphicsPresetItem) mSpinnerGraphicsPreset.getSelectedItem();
-            mPrefs.edit()
-                .putString("graphics_preset", item.id)
-                .apply();
+            mPrefs.edit().putString("graphics_preset", item.id).apply();
         }
     }
 
     private String selectedGameMode() {
-        if (mRadioCs != null && mRadioCs.isChecked()) return "cs";
-        if (mRadioCop != null && mRadioCop.isChecked()) return "cop";
-        return "soc";
+        return mGameMode;
     }
 
+    private static String gameTitle(String mode) {
+        if ("cs".equals(mode)) return "Чистое небо";
+        if ("cop".equals(mode)) return "Зов Припяти";
+        return "Тень Чернобыля";
+    }
+
+    private int countArchives(String mode) {
+        if (mGamePath == null || mGamePath.isEmpty()) return 0;
+        File[] dbFiles = AppLog.collectDatabaseArchives(new File(mGamePath, mode));
+        return dbFiles == null ? 0 : dbFiles.length;
+    }
+
+    private void selectGame(String mode) {
+        mGameMode = mode;
+        mPrefs.edit().putString("game_mode", mode).apply();
+        checkGamePathStatus();
+    }
+
+    /** Обновляет всё, что показывает состояние файлов выбранной игры. */
     private void checkGamePathStatus() {
-        String pathStr = mEditGamePath.getText().toString().trim();
-        if (pathStr.isEmpty()) {
-            mTextPathStatus.setText("Path not specified");
-            mTextPathStatus.setTextColor(ContextCompat.getColor(this, R.color.status_red));
+        if (mTextSelectedGame == null) return;
+        int green = ContextCompat.getColor(this, R.color.status_green);
+        int red = ContextCompat.getColor(this, R.color.status_red);
+
+        if (mGamePath == null || mGamePath.isEmpty()) {
+            mTextPathStatus.setText("Путь не указан");
+            mTextPathStatus.setTextColor(red);
+            mTextSelectedGame.setText(gameTitle(mGameMode));
+            mTextMainStatus.setText("Путь к играм не указан. Откройте «Выбор игры».");
+            tintDot(red);
             return;
         }
 
-        // Each game has its own subfolder: <path>/soc, <path>/cs, <path>/cop.
-        // SoC archives are gamedata.db* in the mode root; retail CoP/CS
-        // archives live in subfolders (levels/, resources/, ...).
-        String mode = selectedGameMode();
-        File dir = new File(pathStr, mode);
+        int[] cardIds = {R.id.card_soc, R.id.card_cs, R.id.card_cop};
+        int[] statusIds = {R.id.status_soc, R.id.status_cs, R.id.status_cop};
+        for (int i = 0; i < MODES.length; i++) {
+            int n = countArchives(MODES[i]);
+            TextView st = findViewById(statusIds[i]);
+            if (n > 0) {
+                st.setText("✓ Файлы найдены, архивов: " + n);
+                st.setTextColor(green);
+            } else {
+                st.setText("✗ Файлов нет: положите игру в " + new File(mGamePath, MODES[i]).getAbsolutePath());
+                st.setTextColor(ContextCompat.getColor(this, R.color.text_muted));
+            }
+            findViewById(cardIds[i]).setBackgroundResource(
+                    MODES[i].equals(mGameMode) ? R.drawable.game_card_selected : R.drawable.game_card);
+        }
 
-        File[] dbFiles = AppLog.collectDatabaseArchives(dir);
-        if (dbFiles != null && dbFiles.length > 0) {
-            mTextPathStatus.setText("✓ Found " + dbFiles.length + " game archives for " + mode + " in " + dir.getAbsolutePath());
-            mTextPathStatus.setTextColor(ContextCompat.getColor(this, R.color.status_green));
+        File dir = new File(mGamePath, mGameMode);
+        int n = countArchives(mGameMode);
+        mTextSelectedGame.setText(gameTitle(mGameMode));
+        if (n > 0) {
+            String msg = "✓ Игра найдена (архивов: " + n + ")";
+            mTextPathStatus.setText(msg + "\n" + dir.getAbsolutePath());
+            mTextPathStatus.setTextColor(green);
+            mTextMainStatus.setText("Всё готово. Сложность выбирается в меню игры.");
+            tintDot(green);
         } else {
-            mTextPathStatus.setText("✗ No game archives in " + dir.getAbsolutePath() + " — copy the " + mode + " archives there");
-            mTextPathStatus.setTextColor(ContextCompat.getColor(this, R.color.status_red));
+            mTextPathStatus.setText("✗ Нет файлов игры в " + dir.getAbsolutePath()
+                    + "\nСкопируйте туда gamedata.db* и папку gamedata.");
+            mTextPathStatus.setTextColor(red);
+            mTextMainStatus.setText("Файлы игры не найдены. Откройте «Выбор игры».");
+            tintDot(red);
         }
     }
 
-    private void checkAndRequestPermissions() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (!Environment.isExternalStorageManager()) {
-                try {
-                    Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
-                    intent.setData(Uri.parse("package:" + getPackageName()));
-                    startActivity(intent);
-                } catch (Exception e) {
-                    Intent intent = new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
-                    startActivity(intent);
-                }
-            }
-        } else {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                    != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, new String[] {
-                    Manifest.permission.READ_EXTERNAL_STORAGE,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE
-                }, PERMISSION_REQUEST_CODE);
-            }
+    private void tintDot(int color) {
+        if (mDotStatus != null && mDotStatus.getBackground() != null) {
+            android.graphics.drawable.Drawable d = mDotStatus.getBackground().mutate();
+            d.setTint(color);
         }
     }
 
-    private void launchGame(boolean isNewGame) {
+    /**
+     * «ИГРАТЬ»: запускает уже настроенную конфигурацию. Никаких -start и
+     * -difficulty: движок открывает главное меню, а новую игру и сложность
+     * игрок выбирает сам.
+     */
+    private void launchGame() {
         savePreferences();
 
-        String basePath = mEditGamePath.getText().toString().trim();
+        final String gameMode = mGameMode;
+        String basePath = mGamePath == null ? "" : mGamePath.trim();
 
-        String gameMode = "soc";
-        if (mRadioCs.isChecked()) {
-            gameMode = "cs";
-        } else if (mRadioCop.isChecked()) {
-            gameMode = "cop";
-        }
-
-        // Each game lives in its own subfolder: <base>/soc, <base>/cs, <base>/cop.
-        // Saves, configs, logs and gamedata.db of different games never mix.
-        String pathStr = basePath.isEmpty() ? basePath : new File(basePath, gameMode).getAbsolutePath();
+        // Каждая игра в своей подпапке: <base>/soc, <base>/cs, <base>/cop.
+        // Сохранения, конфиги, логи и gamedata.db разных игр не смешиваются.
+        final String pathStr = basePath.isEmpty() ? basePath : new File(basePath, gameMode).getAbsolutePath();
         File dir = new File(pathStr);
         if (!pathStr.isEmpty() && !dir.exists()) {
             try {
@@ -572,7 +531,22 @@ public class LauncherActivity extends AppCompatActivity {
             } catch (Exception ignored) {}
         }
 
-        // Build args string
+        // Без архивов игра стартует в серый экран: предупредим заранее.
+        File[] archives = pathStr.isEmpty() ? null : AppLog.collectDatabaseArchives(dir);
+        if (archives == null || archives.length == 0) {
+            new AlertDialog.Builder(this)
+                    .setTitle("Файлы игры не найдены")
+                    .setMessage("В папке\n" + pathStr + "\nнет архивов gamedata.db*. "
+                            + "Без них игра покажет серый экран.")
+                    .setPositiveButton("Выбор игры", (d, w) -> showGamesPanel())
+                    .setNegativeButton("Всё равно запустить", (d, w) -> startEngine(gameMode, pathStr))
+                    .show();
+            return;
+        }
+        startEngine(gameMode, pathStr);
+    }
+
+    private void startEngine(String gameMode, String pathStr) {
         StringBuilder argsBuilder = new StringBuilder();
 
         if ("cs".equals(gameMode)) {
@@ -612,42 +586,33 @@ public class LauncherActivity extends AppCompatActivity {
             argsBuilder.append("-game_path \"").append(pathStr).append("\" ");
         }
 
-        String diff = null;
-        if (isNewGame) {
-            diff = "gd_novice";
-            if (mRadioDiffStalker.isChecked()) diff = "gd_stalker";
-            else if (mRadioDiffVeteran.isChecked()) diff = "gd_veteran";
-            else if (mRadioDiffMaster.isChecked()) diff = "gd_master";
-
-            argsBuilder.append("-difficulty ").append(diff).append(" ");
-            argsBuilder.append("-start server(all/single/alife/new) client(localhost) ");
-        }
-
-        ResolutionItem selectedRes = (mSpinnerResolution != null && mSpinnerResolution.getSelectedItem() instanceof ResolutionItem)
+        ResolutionItem selectedRes = (mSpinnerResolution.getSelectedItem() instanceof ResolutionItem)
             ? (ResolutionItem) mSpinnerResolution.getSelectedItem()
             : null;
         int resW = (selectedRes != null) ? selectedRes.width : 0;
         int resH = (selectedRes != null) ? selectedRes.height : 0;
 
-        boolean noSun = mCheckNoSun != null && mCheckNoSun.isChecked();
+        boolean noSun = mCheckNoSun.isChecked();
         String graphicsPreset = "balanced";
-        if (mSpinnerGraphicsPreset != null && mSpinnerGraphicsPreset.getSelectedItem() instanceof GraphicsPresetItem) {
+        if (mSpinnerGraphicsPreset.getSelectedItem() instanceof GraphicsPresetItem) {
             graphicsPreset = ((GraphicsPresetItem) mSpinnerGraphicsPreset.getSelectedItem()).id;
         }
 
-        updateUserLtxSettingsIfChanged(pathStr, gameMode, diff, mCheckNoShadows.isChecked(), mCheckDLights.isChecked(), noSun, mCheckFastDxt != null && mCheckFastDxt.isChecked(), graphicsPreset, resW, resH);
+        updateUserLtxSettingsIfChanged(pathStr, gameMode, null, mCheckNoShadows.isChecked(),
+                mCheckDLights.isChecked(), noSun, mCheckFastDxt.isChecked(), graphicsPreset, resW, resH);
 
         float sens = Math.max(5, mSeekLookSens.getProgress()) / 10.0f;
         float opacity = Math.max(20, mSeekTouchOpacity.getProgress()) / 100.0f;
         float scale = Math.max(70, mSeekTouchScale.getProgress()) / 100.0f;
 
         String renderBackend = "native";
-        if (mSpinnerRenderBackend != null && mSpinnerRenderBackend.getSelectedItem() instanceof RenderBackendItem) {
+        if (mSpinnerRenderBackend.getSelectedItem() instanceof RenderBackendItem) {
             renderBackend = ((RenderBackendItem) mSpinnerRenderBackend.getSelectedItem()).id;
         }
 
         String finalArgs = argsBuilder.toString().trim();
-        AppLog.i("Launcher", "Starting OpenXRayActivity: isNewGame=" + isNewGame + ", renderBackend=" + renderBackend + ", args: " + finalArgs);
+        AppLog.i("Launcher", "Starting OpenXRayActivity (main menu): renderBackend=" + renderBackend
+                + ", args: " + finalArgs);
 
         Intent gameIntent = new Intent(this, OpenXRayActivity.class);
         gameIntent.putExtra("extra_args", finalArgs);
@@ -661,8 +626,158 @@ public class LauncherActivity extends AppCompatActivity {
         startActivity(gameIntent);
     }
 
+    /**
+     * A session marker that survived the last run means the process died
+     * (native SIGSEGV/SIGABRT or an uncaught Java exception), because a clean
+     * exit deletes it in OpenXRayActivity.onDestroy. Offer to send the logs to
+     * GitHub before the user can touch anything else.
+     */
+    private void offerCrashReportIfPending() {
+        final CrashReporter.CrashInfo info = CrashReporter.checkPendingCrash(this);
+        if (info == null) return;
+
+        final String full = CrashReporter.buildReport(info, this);
+        StringBuilder msg = new StringBuilder();
+        msg.append(CrashReporter.describeCrash(info));
+        if (info.crashLine != null) {
+            msg.append("\n\n").append(info.crashLine);
+        }
+        msg.append('\n');
+
+        androidx.appcompat.app.AlertDialog.Builder b = new AlertDialog.Builder(this)
+                .setTitle("Предыдущий сеанс завершился аварийно")
+                .setCancelable(true);
+
+        if (GitHubIssueReporter.isConfigured()) {
+            // One tap: the logs go straight into an issue, no browser, no CAPTCHA.
+            msg.append("\nОтправить логи в трекер ошибок GitHub?");
+            b.setMessage(msg.toString())
+                .setPositiveButton("Отправить отчёт", (d, w) -> sendCrashReportToGitHub(info));
+        } else {
+            msg.append("\nАвтоматическая отправка в этой сборке не включена "
+                    + "(при сборке не задан токен репозитория).");
+            b.setMessage(msg.toString());
+        }
+        b.setNeutralButton("Копировать логи", (d, w) -> copyLogs(full));
+        b.setNegativeButton("Пропустить", (d, w) -> CrashReporter.consumePendingCrash(this));
+        b.show();
+    }
+
+    private void copyLogs(String text) {
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        if (clipboard != null) {
+            clipboard.setPrimaryClip(ClipData.newPlainText("Логи OpenXRay", text));
+            Toast.makeText(this, "Логи скопированы", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /** One tap -> one issue. Falls back to a copyable report if it cannot send. */
+    private void sendCrashReportToGitHub(final CrashReporter.CrashInfo info) {
+        sendCrashReportToGitHub(info, true);
+    }
+
+    private void sendCrashReportToGitHub(final CrashReporter.CrashInfo info,
+                                         final boolean consumeOnSuccess) {
+        Toast.makeText(this, "Отправка отчёта…", Toast.LENGTH_SHORT).show();
+        GitHubIssueReporter.report(info, this, result -> {
+            if (result.success) {
+                Toast.makeText(this, result.duplicate
+                        ? "Добавлено в существующую задачу" : "Задача создана", Toast.LENGTH_LONG).show();
+                // Only a real crash report may clear the pending marker: a
+                // diagnostics upload must not silently discard a crash.
+                if (consumeOnSuccess) CrashReporter.consumePendingCrash(this);
+                GitHubIssueReporter.openIssue(this, result.issueUrl);
+            } else {
+                // Network/token trouble must not eat the report: keep the text
+                // reachable so the user can paste it somewhere by hand.
+                Toast.makeText(this, result.error, Toast.LENGTH_LONG).show();
+                offerCrashReportFallback(info);
+            }
+        });
+    }
+
+    private void offerCrashReportFallback(final CrashReporter.CrashInfo info) {
+        final String full = CrashReporter.buildReport(info, this);
+        new AlertDialog.Builder(this)
+                .setTitle("Отчёт не отправлен")
+                .setMessage("Логи сохранены. Скопируйте их и вставьте "
+                        + "в новую задачу или отправьте ZIP-архивом.")
+                .setPositiveButton("Повторить", (d, w) -> sendCrashReportToGitHub(info, false))
+                .setNeutralButton("Копировать логи", (d, w) -> copyLogs(full))
+                .setNegativeButton("Закрыть", null)
+                .show();
+    }
+
+    /**
+     * Manual bug report: the current session's logs, sent to the same issue
+     * tracker with one tap. Always available, whether or not a crash happened.
+     */
+    private void showBugTrackerDialog() {
+        String repo = BuildConfig.GITHUB_REPO;
+        StringBuilder msg = new StringBuilder();
+        msg.append("Сообщить о проблеме в OpenXRay Android.\n\n");
+        msg.append("Трекер: ").append(repo).append('\n');
+        if (GitHubIssueReporter.isConfigured()) {
+            msg.append("\nОдно нажатие отправит лог движка, logcat и лог приложения как новую "
+                    + "задачу. Больше ничего не отправляется.");
+        } else {
+            msg.append("\nАвтоматическая отправка в этой сборке не включена, поэтому вы получите "
+                    + "логи, чтобы вставить их в новую задачу вручную.");
+        }
+
+        androidx.appcompat.app.AlertDialog.Builder b = new AlertDialog.Builder(this)
+                .setTitle("Сообщить об ошибке")
+                .setMessage(msg.toString())
+                .setNegativeButton("Закрыть", null);
+
+        if (GitHubIssueReporter.isConfigured()) {
+            b.setPositiveButton("Отправить отчёт", (d, w) ->
+                    sendCrashReportToGitHub(CrashReporter.forCurrentSession(this), false));
+        }
+        // Falls back to the repository page, so this button is useful whether or
+        // not a token was baked in.
+        b.setNeutralButton("Открыть трекер", (d, w) -> {
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW,
+                        Uri.parse("https://github.com/" + repo + "/issues")));
+            } catch (Exception e) {
+                Toast.makeText(this, "Не удалось открыть браузер", Toast.LENGTH_SHORT).show();
+            }
+        });
+        // The crash dialog offers "Копировать логи", but this manual path only offered
+        // "Отправить отчёт" or the browser -- so once the crash marker had been
+        // consumed there was no way left to get the report text out at all.
+        // Always keep it reachable, token or no token.
+        b.setNeutralButton("Копировать логи", (d, w) ->
+                copyLogs(CrashReporter.buildReport(CrashReporter.forCurrentSession(this), this)));
+        b.show();
+    }
+
+    private void checkAndRequestPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                try {
+                    Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                    intent.setData(Uri.parse("package:" + getPackageName()));
+                    startActivity(intent);
+                } catch (Exception e) {
+                    Intent intent = new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
+                    startActivity(intent);
+                }
+            }
+        } else {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[] {
+                    Manifest.permission.READ_EXTERNAL_STORAGE,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+                }, PERMISSION_REQUEST_CODE);
+            }
+        }
+    }
+
     private void showLogsDialog() {
-        String basePath = mEditGamePath.getText().toString().trim();
+        String basePath = mGamePath;
         String pathStr = (basePath != null && !basePath.isEmpty())
             ? new File(basePath, selectedGameMode()).getAbsolutePath()
             : basePath;
@@ -743,14 +858,14 @@ public class LauncherActivity extends AppCompatActivity {
         sv.addView(tv);
 
         androidx.appcompat.app.AlertDialog.Builder builder = new AlertDialog.Builder(this)
-            .setTitle("OpenXRay Logs")
+            .setTitle("Логи OpenXRay")
             .setView(sv)
-            .setPositiveButton("Share Zip", (dialog, which) -> {
+            .setPositiveButton("Отправить ZIP", (dialog, which) -> {
                 File report = new File(logDir, "openxray_report.txt");
                 try (BufferedWriter writer = new BufferedWriter(new FileWriter(report, false))) {
                     writer.write(content.toString());
                 } catch (Exception e) {
-                    Toast.makeText(this, "Could not save report: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    Toast.makeText(this, "Не удалось сохранить отчёт: " + e.getMessage(), Toast.LENGTH_LONG).show();
                     return;
                 }
                 shareLogsZip(logDir, report);
@@ -759,10 +874,10 @@ public class LauncherActivity extends AppCompatActivity {
         // Diagnostics upload for "broken but not crashing" reports. Consumes no
         // crash marker: a pending crash stays reportable afterwards.
         if (GitHubIssueReporter.isConfigured()) {
-            builder.setNeutralButton("Send to GitHub", (dialog, which) ->
+            builder.setNeutralButton("Отправить на GitHub", (dialog, which) ->
                     sendCrashReportToGitHub(CrashReporter.forCurrentSession(this), false));
         }
-        builder.setNegativeButton("Close", null);
+        builder.setNegativeButton("Закрыть", null);
         builder.show();
     }
 
@@ -788,7 +903,7 @@ public class LauncherActivity extends AppCompatActivity {
             File userLtx = new File(logDir, "_appdata_/user.ltx");
             if (userLtx.exists()) addToZip(zos, userLtx, "user.ltx");
         } catch (Exception e) {
-            Toast.makeText(this, "Could not create zip: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Не удалось создать архив: " + e.getMessage(), Toast.LENGTH_LONG).show();
             return;
         }
 
@@ -799,7 +914,7 @@ public class LauncherActivity extends AppCompatActivity {
         share.putExtra(android.content.Intent.EXTRA_STREAM, uri);
         share.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
         share.setClipData(android.content.ClipData.newUri(getContentResolver(), "logs", uri));
-        startActivity(android.content.Intent.createChooser(share, "Share logs"));
+        startActivity(android.content.Intent.createChooser(share, "Поделиться логами"));
     }
 
     private static void addToZip(java.util.zip.ZipOutputStream zos, File f, String entryName)
@@ -859,11 +974,11 @@ public class LauncherActivity extends AppCompatActivity {
     // "none" means the launcher does not manage graphics at all (set in game).
     private static String presetTokenForId(String presetId) {
         if ("none".equals(presetId)) return null;
-        if ("minimum".equals(presetId)) return "Minimum";
-        if ("low".equals(presetId)) return "Low";
-        if ("high".equals(presetId)) return "High";
-        if ("extreme".equals(presetId)) return "Extreme";
-        if ("potato".equals(presetId)) return "Minimum";
+        if ("minimum".equals(presetId)) return "Минимум";
+        if ("low".equals(presetId)) return "Низкие";
+        if ("high".equals(presetId)) return "Высокие";
+        if ("extreme".equals(presetId)) return "Экстрим";
+        if ("potato".equals(presetId)) return "Минимум";
         return "Default";
     }
 
@@ -983,8 +1098,9 @@ public class LauncherActivity extends AppCompatActivity {
     private void updateUserLtxSettingsIfChanged(String modePathStr, String gameMode, String diff,
             boolean noShadows, boolean dLights, boolean noSun, boolean fastDxt,
             String graphicsPreset, int resW, int resH) {
-        String sig = graphicsPreset + "|" + resW + "x" + resH + "|"
-                + noShadows + "|" + dLights + "|" + noSun + "|" + fastDxt + "|" + diff;
+        // v2: сложность больше не пишется лаунчером, а load_last_save вычищается.
+        String sig = "v2|" + graphicsPreset + "|" + resW + "x" + resH + "|"
+                + noShadows + "|" + dLights + "|" + noSun + "|" + fastDxt;
         String key = "applied_gfx_signature_" + gameMode;
         String prev = mPrefs.getString(key, null);
         File probe = new File(new File(modePathStr, "_appdata_"), "user.ltx");
@@ -1119,7 +1235,9 @@ public class LauncherActivity extends AppCompatActivity {
                     String line;
                     while ((line = reader.readLine()) != null) {
                         String trimmed = line.trim();
-                        if (isManagedGraphicsKey(trimmed)) {
+                        if (isManagedGraphicsKey(trimmed)
+                                || trimmed.startsWith("load_last_save")) {
+                            // load_last_save пропускал меню и грузил последнее сохранение.
                             continue;
                         }
                         boolean replaced = false;
@@ -1138,32 +1256,6 @@ public class LauncherActivity extends AppCompatActivity {
                 }
             } else {
                 lines.add("renderer renderer_rgl");
-            }
-
-            File[] saveDirs = new File[] {
-                new File(appDataDir, "savedgames"),
-                new File(pathStr, "savedgames"),
-                new File(pathStr, "appdata/savedgames")
-            };
-            String latestSaveName = null;
-            long latestSaveTime = 0;
-            for (File sDir : saveDirs) {
-                if (sDir.exists() && sDir.isDirectory()) {
-                    File[] files = sDir.listFiles();
-                    if (files != null) {
-                        for (File sf : files) {
-                            String fn = sf.getName();
-                            if ((fn.endsWith(".sav") || fn.endsWith(".scop")) && sf.lastModified() > latestSaveTime) {
-                                latestSaveTime = sf.lastModified();
-                                int dot = fn.lastIndexOf('.');
-                                latestSaveName = (dot > 0) ? fn.substring(0, dot) : fn;
-                            }
-                        }
-                    }
-                }
-            }
-            if (latestSaveName != null && !latestSaveName.isEmpty()) {
-                settings.put("load_last_save", latestSaveName);
             }
 
             for (java.util.Map.Entry<String, String> entry : settings.entrySet()) {
@@ -1241,7 +1333,7 @@ public class LauncherActivity extends AppCompatActivity {
             Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
             startActivityForResult(intent, BROWSE_FOLDER_REQUEST_CODE);
         } catch (Exception e) {
-            Toast.makeText(this, "Failed to open folder picker", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Не удалось открыть выбор папки", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -1316,16 +1408,16 @@ public class LauncherActivity extends AppCompatActivity {
         float aspect = (float) screenW / (float) screenH;
 
         // 1. Native resolution
-        mResolutionList.add(new ResolutionItem("Native: " + screenW + "x" + screenH + " (Screen native)", 0, 0));
+        mResolutionList.add(new ResolutionItem("Родное: " + screenW + "x" + screenH + " (экран)", 0, 0));
 
         // 2. Aspect-ratio matched resolutions (preserving full-width screen without stretching)
         if (Math.abs(aspect - (16.0f / 9.0f)) > 0.05f) {
             int w1080 = Math.round(1080 * aspect);
             int w720 = Math.round(720 * aspect);
             int w540 = Math.round(540 * aspect);
-            mResolutionList.add(new ResolutionItem("1080p Screen (" + w1080 + "x1080)", w1080, 1080));
-            mResolutionList.add(new ResolutionItem("720p Screen (" + w720 + "x720)", w720, 720));
-            mResolutionList.add(new ResolutionItem("540p Screen (" + w540 + "x540)", w540, 540));
+            mResolutionList.add(new ResolutionItem("1080p по экрану (" + w1080 + "x1080)", w1080, 1080));
+            mResolutionList.add(new ResolutionItem("720p по экрану (" + w720 + "x720)", w720, 720));
+            mResolutionList.add(new ResolutionItem("540p по экрану (" + w540 + "x540)", w540, 540));
         }
 
         // 3. Standard fixed resolutions
@@ -1361,13 +1453,13 @@ public class LauncherActivity extends AppCompatActivity {
 
     private void setupGraphicsPresetSpinner() {
         mGraphicsPresetList.clear();
-        mGraphicsPresetList.add(new GraphicsPresetItem("None (set in game)", "none"));
-        mGraphicsPresetList.add(new GraphicsPresetItem("Potato (max speed)", "potato"));
-        mGraphicsPresetList.add(new GraphicsPresetItem("Minimum", "minimum"));
-        mGraphicsPresetList.add(new GraphicsPresetItem("Low", "low"));
-        mGraphicsPresetList.add(new GraphicsPresetItem("Balanced", "balanced"));
-        mGraphicsPresetList.add(new GraphicsPresetItem("High", "high"));
-        mGraphicsPresetList.add(new GraphicsPresetItem("Extreme", "extreme"));
+        mGraphicsPresetList.add(new GraphicsPresetItem("Нет (настроить в игре)", "none"));
+        mGraphicsPresetList.add(new GraphicsPresetItem("Картошка (макс. скорость)", "potato"));
+        mGraphicsPresetList.add(new GraphicsPresetItem("Минимум", "minimum"));
+        mGraphicsPresetList.add(new GraphicsPresetItem("Низкие", "low"));
+        mGraphicsPresetList.add(new GraphicsPresetItem("Сбалансированные", "balanced"));
+        mGraphicsPresetList.add(new GraphicsPresetItem("Высокие", "high"));
+        mGraphicsPresetList.add(new GraphicsPresetItem("Экстрим", "extreme"));
 
         mGraphicsPresetAdapter = new ArrayAdapter<>(
             this,
@@ -1397,7 +1489,7 @@ public class LauncherActivity extends AppCompatActivity {
 
     private void setupRenderBackendSpinner() {
         mRenderBackendList.clear();
-        mRenderBackendList.add(new RenderBackendItem("Native OpenGL ES", "native"));
+        mRenderBackendList.add(new RenderBackendItem("Нативный OpenGL ES", "native"));
         mRenderBackendList.add(new RenderBackendItem("OpenGL ES -> Vulkan (ANGLE)", "angle_vulkan"));
         mRenderBackendList.add(new RenderBackendItem("OpenGL ES -> OpenGL ES (ANGLE)", "angle_gles"));
 
@@ -1447,10 +1539,10 @@ public class LauncherActivity extends AppCompatActivity {
             if ("angle_vulkan".equals(item.id) || "angle_gles".equals(item.id)) {
                 mTextRenderBackendStatus.setVisibility(View.VISIBLE);
                 if (isAngleAvailable()) {
-                    mTextRenderBackendStatus.setText("✓ ANGLE libraries detected in APK");
+                    mTextRenderBackendStatus.setText("✓ Библиотеки ANGLE найдены в APK");
                     mTextRenderBackendStatus.setTextColor(ContextCompat.getColor(this, R.color.status_green));
                 } else {
-                    mTextRenderBackendStatus.setText("⚠ ANGLE libraries not found in APK. Run scripts/build_angle.bat to build them (will fallback to Native).");
+                    mTextRenderBackendStatus.setText("⚠ Библиотеки ANGLE не найдены в APK: будет использован нативный OpenGL ES.");
                     mTextRenderBackendStatus.setTextColor(ContextCompat.getColor(this, R.color.amber_primary));
                 }
             } else {

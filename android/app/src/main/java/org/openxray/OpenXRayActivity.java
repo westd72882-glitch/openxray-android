@@ -293,6 +293,12 @@ public class OpenXRayActivity extends SDLActivity {
         // does not offer to report a non-crash.
         CrashReporter.markGameStoppedCleanly(this);
         AppLog.close();
+        // Движок X-Ray держит глобальное состояние (синглтоны, мьютексы) и не
+        // умеет стартовать повторно в том же процессе: второй запуск падал или
+        // показывал серый экран, и приходилось заходить в приложение заново.
+        // Убиваем процесс после чистого выхода: следующий запуск идёт с нуля,
+        // а система сама вернёт лаунчер.
+        android.os.Process.killProcess(android.os.Process.myPid());
     }
 
     private void checkAndRequestPermissions() {
