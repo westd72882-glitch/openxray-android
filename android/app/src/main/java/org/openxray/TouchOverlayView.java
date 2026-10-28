@@ -120,6 +120,10 @@ public class TouchOverlayView extends View {
     private final Paint mDetectorStrokePaint;
     private final Paint mDetectorPressedPaint;
 
+    /** Радиус всех кнопок одинаковый (доля высоты экрана). */
+    private static final float UNIFORM_RADIUS = 0.062f;
+
+    private final Paint mIconPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mTextPaint;
 
     // Joystick state
@@ -260,6 +264,9 @@ public class TouchOverlayView extends View {
         mTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         mTextPaint.setTextAlign(Paint.Align.CENTER);
         mTextPaint.setTypeface(Typeface.DEFAULT_BOLD);
+        mIconPaint.setStyle(Paint.Style.STROKE);
+        mIconPaint.setStrokeCap(Paint.Cap.ROUND);
+        mIconPaint.setStrokeJoin(Paint.Join.ROUND);
 
         updatePaints();
     }
@@ -415,7 +422,7 @@ public class TouchOverlayView extends View {
         if (pos == null) return;
         float x = pos.relX * getWidth();
         float y = pos.relY * getHeight();
-        float r = pos.relRadius * getHeight() * mButtonScale;
+        float r = UNIFORM_RADIUS * getHeight() * mButtonScale;
         mButtons.add(new TouchButton(id, label, isLeft, x, y, r));
     }
 
@@ -424,7 +431,7 @@ public class TouchOverlayView extends View {
         if (pos == null) return;
         float x = pos.relX * getWidth();
         float y = pos.relY * getHeight();
-        float r = pos.relRadius * getHeight() * mButtonScale;
+        float r = UNIFORM_RADIUS * getHeight() * mButtonScale;
         mButtons.add(new TouchButton(id, label, keyCode, x, y, r, type));
     }
 
@@ -725,12 +732,17 @@ public class TouchOverlayView extends View {
             // Stroke
             canvas.drawRoundRect(btn.bounds, cornerRadius, cornerRadius, strokePaint);
 
-            // Text Label
-            float fontSize = btn.bounds.height() * (btn.label.length() > 6 ? 0.22f : (btn.label.length() > 4 ? 0.26f : (btn.label.length() > 2 ? 0.32f : 0.40f)));
-            mTextPaint.setTextSize(fontSize);
-
-            float textY = btn.bounds.centerY() - ((mTextPaint.descent() + mTextPaint.ascent()) / 2);
-            canvas.drawText(btn.label, btn.bounds.centerX(), textY, mTextPaint);
+            // Иконка вместо надписи (если иконки нет, остаётся текст)
+            if (TouchIcons.has(btn.id)) {
+                mIconPaint.setColor(mTextPaint.getColor());
+                TouchIcons.draw(canvas, btn.id, btn.bounds.centerX(), btn.bounds.centerY(),
+                        btn.bounds.width() * 0.58f, mIconPaint);
+            } else {
+                float fontSize = btn.bounds.height() * (btn.label.length() > 6 ? 0.22f : (btn.label.length() > 4 ? 0.26f : (btn.label.length() > 2 ? 0.32f : 0.40f)));
+                mTextPaint.setTextSize(fontSize);
+                float textY = btn.bounds.centerY() - ((mTextPaint.descent() + mTextPaint.ascent()) / 2);
+                canvas.drawText(btn.label, btn.bounds.centerX(), textY, mTextPaint);
+            }
         }
     }
 }

@@ -301,15 +301,22 @@ public class AppLog {
         if (dir == null || !dir.isDirectory()) {
             return null;
         }
-        File[] logs = dir.listFiles((d, name) ->
-                name.startsWith("OpenXRay") && name.toLowerCase(Locale.US).endsWith(".log"));
-        if (logs == null || logs.length == 0) {
-            return null;
-        }
-        File newest = logs[0];
-        for (File f : logs) {
-            if (f.lastModified() > newest.lastModified()) {
-                newest = f;
+        // Движок пишет лог в $logs$ = _appdata_/logs (см. fsgame.ltx), а раньше он
+        // мог лежать рядом с игрой, поэтому смотрим во всех местах.
+        File[] dirs = { dir, new File(new File(dir, "_appdata_"), "logs"), new File(dir, "_appdata_") };
+        File newest = null;
+        for (File d : dirs) {
+            File[] logs = d.listFiles((x, name) -> {
+                String n = name.toLowerCase(Locale.US);
+                return n.endsWith(".log")
+                        && !n.startsWith("openxray_app") && !n.startsWith("openxray_logcat")
+                        && !n.startsWith("openxray_full") && !n.startsWith("frame_trace");
+            });
+            if (logs == null) continue;
+            for (File f : logs) {
+                if (newest == null || f.lastModified() > newest.lastModified()) {
+                    newest = f;
+                }
             }
         }
         return newest;
