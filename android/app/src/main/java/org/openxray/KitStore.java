@@ -16,7 +16,7 @@ import java.nio.charset.StandardCharsets;
  */
 public final class KitStore {
 
-    public static final int START_COINS = 5;
+    public static final int START_COINS = 999;
     public static final int CAT_ARMOR = 0, CAT_WEAPON = 1, CAT_AMMO = 2;
     public static final String[] CAT_TITLES = {"БРОНЯ", "ОРУЖИЕ", "ПАТРОНЫ И ПРОЧЕЕ"};
 
@@ -34,22 +34,22 @@ public final class KitStore {
         }
     }
 
-    /** Каталог. Цены меняются здесь. */
+    /** Каталог. Цены меняются здесь. Всё покупается без ограничений (stack = true). */
     public static final Item[] CATALOG = {
-            new Item("specops", "specops_outfit", "Берилл-5М", 1, R.drawable.shop_specops, CAT_ARMOR, false),
-            new Item("bandit", "stalker_outfit", "Куртка бандита", 1, R.drawable.shop_bandit, CAT_ARMOR, false),
-            new Item("scientific", "scientific_outfit", "Научный костюм", 2, R.drawable.shop_scientific, CAT_ARMOR, false),
-            new Item("military", "military_outfit", "Бронежилет военных", 2, R.drawable.shop_military, CAT_ARMOR, false),
+            new Item("specops", "specops_outfit", "Берилл-5М", 10, R.drawable.shop_specops, CAT_ARMOR, true),
+            new Item("bandit", "stalker_outfit", "Куртка бандита", 5, R.drawable.shop_bandit, CAT_ARMOR, true),
+            new Item("scientific", "scientific_outfit", "Научный костюм", 9, R.drawable.shop_scientific, CAT_ARMOR, true),
+            new Item("military", "military_outfit", "Бронежилет военных", 8, R.drawable.shop_military, CAT_ARMOR, true),
 
-            new Item("pm", "wpn_pm", "ПМ", 1, R.drawable.shop_wpn_pm, CAT_WEAPON, false),
-            new Item("ak74u", "wpn_ak74u", "АКС-74У", 2, R.drawable.shop_wpn_ak74u, CAT_WEAPON, false),
-            new Item("bm16", "wpn_bm16", "БМ-16", 2, R.drawable.shop_wpn_bm16, CAT_WEAPON, false),
-            new Item("knife", "wpn_knife", "Нож", 1, R.drawable.shop_wpn_knife, CAT_WEAPON, false),
+            new Item("pm", "wpn_pm", "ПМ", 5, R.drawable.shop_wpn_pm, CAT_WEAPON, true),
+            new Item("ak74u", "wpn_ak74u", "АКС-74У", 9, R.drawable.shop_wpn_ak74u, CAT_WEAPON, true),
+            new Item("bm16", "wpn_bm16", "БМ-16", 8, R.drawable.shop_wpn_bm16, CAT_WEAPON, true),
+            new Item("knife", "wpn_knife", "Нож", 5, R.drawable.shop_wpn_knife, CAT_WEAPON, true),
 
-            new Item("ammo_9x18", "ammo_9x18_fmj", "Патроны 9x18", 1, R.drawable.shop_ammo_9x18, CAT_AMMO, true),
-            new Item("ammo_545", "ammo_5.45x39_fmj", "Патроны 5.45x39", 1, R.drawable.shop_ammo_545, CAT_AMMO, true),
-            new Item("ammo_12x70", "ammo_12x70_buck", "Картечь 12x70", 1, R.drawable.shop_ammo_12x70, CAT_AMMO, true),
-            new Item("grenade", "grenade_f1", "Граната Ф-1", 1, R.drawable.shop_grenade_f1, CAT_AMMO, true),
+            new Item("ammo_9x18", "ammo_9x18_fmj", "Патроны 9x18", 5, R.drawable.shop_ammo_9x18, CAT_AMMO, true),
+            new Item("ammo_545", "ammo_5.45x39_fmj", "Патроны 5.45x39", 6, R.drawable.shop_ammo_545, CAT_AMMO, true),
+            new Item("ammo_12x70", "ammo_12x70_buck", "Картечь 12x70", 6, R.drawable.shop_ammo_12x70, CAT_AMMO, true),
+            new Item("grenade", "grenade_f1", "Граната Ф-1", 7, R.drawable.shop_grenade_f1, CAT_AMMO, true),
     };
 
     public static final int BUY_OK = 0, BUY_NO_COINS = 1, BUY_OWNED = 2;
@@ -64,11 +64,12 @@ public final class KitStore {
 
     public static int getCoins(Context c) {
         SharedPreferences p = prefs(c);
-        if (!p.contains("coins")) {
-            p.edit().putInt("coins", START_COINS).apply();
+        // coins2: один раз выдаём 999 монет всем, в том числе тем, у кого был старый баланс
+        if (!p.contains("coins2")) {
+            p.edit().putInt("coins2", START_COINS).apply();
             return START_COINS;
         }
-        return p.getInt("coins", START_COINS);
+        return p.getInt("coins2", START_COINS);
     }
 
     public static int getOwned(Context c, Item it) {
@@ -78,9 +79,8 @@ public final class KitStore {
     public static int buy(Context c, Item it) {
         int coins = getCoins(c);
         int owned = getOwned(c, it);
-        if (!it.stack && owned > 0) return BUY_OWNED;
         if (coins < it.price) return BUY_NO_COINS;
-        prefs(c).edit().putInt("coins", coins - it.price).putInt("own_" + it.id, owned + 1).apply();
+        prefs(c).edit().putInt("coins2", coins - it.price).putInt("own_" + it.id, owned + 1).apply();
         return BUY_OK;
     }
 

@@ -37,7 +37,7 @@ public class AtmosphereView extends View {
     public AtmosphereView(Context c, AttributeSet a, int s) { super(c, a, s); init(); }
 
     private void init() {
-        fill.setColor(0xFF0B0E0A);
+        fill.setColor(0xFF0A0A0A);
         try {
             BitmapFactory.Options o = new BitmapFactory.Options();
             o.inPreferredConfig = Bitmap.Config.RGB_565;
@@ -58,7 +58,7 @@ public class AtmosphereView extends View {
         }
         // Затемнение слева направо: текст читается, справа остаётся картинка.
         shade.setShader(new LinearGradient(0, 0, w, 0,
-                new int[]{0xE6080A07, 0x99080A07, 0x33080A07},
+                new int[]{0xE60A0A0A, 0x660A0A0A, 0x1A0A0A0A},
                 new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
         vignette.setShader(new RadialGradient(w * 0.5f, h * 0.5f, Math.max(w, h) * 0.75f,
                 new int[]{0x00000000, 0x00000000, 0xAA000000},

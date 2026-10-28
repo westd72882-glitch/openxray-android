@@ -674,7 +674,8 @@ public class OpenXRayActivity extends SDLActivity {
         // guard that a CoP/SoC mix otherwise trips on every frame.
         String[] requiredScripts = "soc".equals(gameMode)
                 ? new String[] { "class_registrator.script", "move_mgr.script",
-                                 "task_manager.script", "death_manager.script", "ui_main_menu.script" }
+                                 "task_manager.script", "death_manager.script", "ui_main_menu.script",
+                                 "kit_shop.script" }
                 : "cs".equals(gameMode)
                 ? new String[] { "xrs_dyn_music.script", "xr_s.script" }
                 : new String[] { "_g.script", "ui_main_menu.script",

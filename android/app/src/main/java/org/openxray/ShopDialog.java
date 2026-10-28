@@ -24,14 +24,15 @@ import java.io.File;
 /** Магазин Киткоинов. Открывается кнопкой SHOP в игре. */
 public class ShopDialog extends Dialog {
 
-    private static final int AMBER = 0xFFD9A441;
-    private static final int TEXT = 0xFFD2CDBB;
-    private static final int MUTED = 0xFF80836F;
+    private static final int AMBER = 0xFFE8A33D;
+    private static final int TEXT = 0xFFDAD7CF;
+    private static final int MUTED = 0xFF8A8780;
 
     private final File gameDir;
     private final float d;
     private TextView balance;
     private LinearLayout content;
+    private ScrollView scroll;
 
     public ShopDialog(Context c, File gameDir) {
         super(c, android.R.style.Theme_DeviceDefault_NoActionBar_Fullscreen);
@@ -44,7 +45,7 @@ public class ShopDialog extends Dialog {
         super.onCreate(b);
         Window w = getWindow();
         if (w != null) {
-            w.setBackgroundDrawable(new ColorDrawable(0xF0090B07));
+            w.setBackgroundDrawable(new ColorDrawable(0xF0090909));
             w.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
             w.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         }
@@ -64,7 +65,7 @@ public class ShopDialog extends Dialog {
         LinearLayout chip = new LinearLayout(getContext());
         chip.setGravity(Gravity.CENTER_VERTICAL);
         chip.setPadding(dp(10), dp(5), dp(14), dp(5));
-        chip.setBackground(rounded(0xFF1B1F13, 0xFF4C5434, 20));
+        chip.setBackground(rounded(0xFF1A1A1A, 0xFF3C3A36, 4));
         ImageView coin = new ImageView(getContext());
         coin.setImageResource(R.drawable.ic_kitcoin);
         chip.addView(coin, new LinearLayout.LayoutParams(dp(24), dp(24)));
@@ -84,12 +85,13 @@ public class ShopDialog extends Dialog {
         head.addView(close, cl);
         root.addView(head);
 
-        TextView hint = text("Купленное хранится в приложении и появится в инвентаре при создании новой игры.",
+        TextView hint = text("Покупать можно сколько угодно. Купленное появится в инвентаре через пару секунд (если игра запущена) или при начале новой игры.",
                 11, MUTED, false);
         hint.setPadding(0, dp(4), 0, dp(8));
         root.addView(hint);
 
         ScrollView sv = new ScrollView(getContext());
+        scroll = sv;
         sv.setOverScrollMode(View.OVER_SCROLL_NEVER);
         content = new LinearLayout(getContext());
         content.setOrientation(LinearLayout.VERTICAL);
@@ -101,6 +103,7 @@ public class ShopDialog extends Dialog {
     }
 
     private void refresh() {
+        final int keepY = scroll != null ? scroll.getScrollY() : 0;
         balance.setText(String.valueOf(KitStore.getCoins(getContext())));
         content.removeAllViews();
         for (int cat = 0; cat < KitStore.CAT_TITLES.length; cat++) {
@@ -122,6 +125,7 @@ public class ShopDialog extends Dialog {
             content.addView(grid, new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         }
+        if (scroll != null) scroll.post(() -> scroll.scrollTo(0, keepY));
     }
 
     private View card(KitStore.Item it) {
@@ -130,7 +134,8 @@ public class ShopDialog extends Dialog {
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_HORIZONTAL);
         card.setPadding(dp(8), dp(8), dp(8), dp(8));
-        card.setBackground(rounded(0xFF161A11, owned > 0 ? AMBER : 0xFF3A4029, 14));
+        card.setBackgroundResource(R.drawable.card_bg);
+        if (owned > 0) card.setBackground(rounded(0xFF171717, AMBER, 4));
 
         ImageView img = new ImageView(getContext());
         img.setImageDrawable(icon(it.icon));
@@ -142,26 +147,22 @@ public class ShopDialog extends Dialog {
         name.setPadding(0, dp(4), 0, dp(4));
         card.addView(name);
 
+        TextView cnt = text("В наличии: " + owned, 11, owned > 0 ? AMBER : MUTED, owned > 0);
+        cnt.setGravity(Gravity.CENTER);
+        cnt.setPadding(0, 0, 0, dp(6));
+        card.addView(cnt);
+
         LinearLayout buy = new LinearLayout(getContext());
         buy.setGravity(Gravity.CENTER);
-        buy.setPadding(dp(8), dp(6), dp(8), dp(6));
-        boolean sold = !it.stack && owned > 0;
-        buy.setBackground(rounded(sold ? 0xFF22271A : 0xFF4B4222, sold ? 0xFF4C5434 : AMBER, 18));
-        if (sold) {
-            buy.addView(text("КУПЛЕНО", 12, MUTED, true));
-        } else {
-            ImageView c = new ImageView(getContext());
-            c.setImageResource(R.drawable.ic_kitcoin);
-            buy.addView(c, new LinearLayout.LayoutParams(dp(18), dp(18)));
-            TextView price = text(String.valueOf(it.price), 13, AMBER, true);
-            price.setPadding(dp(6), 0, 0, 0);
-            buy.addView(price);
-            if (it.stack && owned > 0) {
-                TextView cnt = text("  x" + owned, 11, MUTED, false);
-                buy.addView(cnt);
-            }
-            buy.setOnClickListener(v -> onBuy(it));
-        }
+        buy.setPadding(dp(8), dp(8), dp(8), dp(8));
+        buy.setBackgroundResource(R.drawable.pill_button); // как кнопки лаунчера
+        ImageView c = new ImageView(getContext());
+        c.setImageResource(R.drawable.ic_kitcoin);
+        buy.addView(c, new LinearLayout.LayoutParams(dp(18), dp(18)));
+        TextView price = text(String.valueOf(it.price), 13, AMBER, true);
+        price.setPadding(dp(6), 0, 0, 0);
+        buy.addView(price);
+        buy.setOnClickListener(v -> onBuy(it));
         card.addView(buy, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT));
         return card;
@@ -171,7 +172,7 @@ public class ShopDialog extends Dialog {
         int r = KitStore.buy(getContext(), it);
         if (r == KitStore.BUY_OK) {
             KitStore.writeItemsFile(getContext(), gameDir);
-            Toast.makeText(getContext(), "Куплено: " + it.title, Toast.LENGTH_SHORT).show();
+            Toast.makeText(getContext(), "Куплено: " + it.title + " (всего " + KitStore.getOwned(getContext(), it) + ")", Toast.LENGTH_SHORT).show();
             refresh();
         } else if (r == KitStore.BUY_NO_COINS) {
             Toast.makeText(getContext(), "Не хватает Киткоинов", Toast.LENGTH_SHORT).show();

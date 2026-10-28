@@ -825,79 +825,47 @@ public class LauncherActivity extends AppCompatActivity {
         File logcatBkpFile = new File(logDir, "openxray_logcat.log.bkp");
         File engineLog = AppLog.findEngineLog(logDir);
 
-        StringBuilder content = new StringBuilder();
-        content.append("Log directory: ").append(logDir.getAbsolutePath()).append("\n\n");
+        final String fullLog = buildFullLog(logDir);
+        final String preview = fullLog.length() > 100000
+                ? "[показан хвост лога, 100000 из " + fullLog.length() + " символов; кнопка копирует ВЕСЬ лог]\n"
+                    + fullLog.substring(fullLog.length() - 100000)
+                : fullLog;
 
-        if (appLogFile.exists()) {
-            content.append("=== [openxray_app.log (Current Session)] ===\n");
-            content.append(readLastLines(appLogFile, 150)).append("\n\n");
-        } else {
-            content.append("openxray_app.log: not found\n\n");
-        }
-
-        if (appLogBkpFile.exists() && appLogBkpFile.length() > 0) {
-            content.append("=== [openxray_app.log.bkp (Previous Session / Crash)] ===\n");
-            content.append(readLastLines(appLogBkpFile, 150)).append("\n\n");
-        }
-
-        // The engine writes its own log; fatal engine errors (CHECK_OR_EXIT,
-        // R_ASSERT) only ever appear there.
-        if (engineLog != null) {
-            content.append("=== [").append(engineLog.getName()).append(" (Engine Log)] (last 200 lines) ===\n");
-            content.append(readLastLines(engineLog, 200)).append("\n\n");
-            File engineLogBkp = new File(engineLog.getParentFile(),
-                    engineLog.getName().replaceAll("\\.log$", ".bkp"));
-            if (engineLogBkp.exists() && engineLogBkp.length() > 0) {
-                content.append("=== [").append(engineLogBkp.getName()).append(" (Engine Log, Previous Session)] (last 200 lines) ===\n");
-                content.append(readLastLines(engineLogBkp, 200)).append("\n\n");
-            }
-        } else {
-            content.append("=== [Engine Log] ===\n");
-            content.append("No OpenXRay_*.log found: the engine never got far enough to create its log.\n\n");
-        }
-
-        // fsgame.ltx decides which .db archives get mounted - dump it verbatim.
-        File fsgame = new File(logDir, "fsgame.ltx");
-        if (fsgame.exists()) {
-            content.append("=== [fsgame.ltx] ===\n");
-            String fsgameText = AppLog.readTextFile(fsgame);
-            content.append(fsgameText != null ? fsgameText : "(unreadable)").append("\n\n");
-        }
-
-        if (logcatFile.exists()) {
-            content.append("=== [openxray_logcat.log] (last 100 lines) ===\n");
-            content.append(readLastLines(logcatFile, 100)).append("\n");
-        }
-
-        if (logcatBkpFile.exists() && logcatBkpFile.length() > 0) {
-            content.append("\n=== [openxray_logcat.log.bkp (Previous Session Logcat)] (last 100 lines) ===\n");
-            content.append(readLastLines(logcatBkpFile, 100)).append("\n");
-        }
-
-        // Native crashes are logged by the system ("Fatal signal 11"), not by the
-        // app, so a plain logcat capture of our own pid never sees them.
-        String crashBuffer = readLogcatBuffer("crash");
-        if (crashBuffer != null && !crashBuffer.isEmpty()) {
-            content.append("\n=== [logcat -b crash (Native Crash / Tombstone)] (last 80 lines) ===\n");
-            content.append(crashBuffer).append("\n");
-        }
-
-        android.widget.ScrollView sv = new android.widget.ScrollView(this);
         TextView tv = new TextView(this);
-        tv.setText(content.toString());
+        tv.setText(preview);
         tv.setTextSize(11);
         tv.setPadding(30, 20, 30, 20);
         tv.setTextIsSelectable(true);
         tv.setTypeface(android.graphics.Typeface.MONOSPACE);
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
         sv.addView(tv);
+
+        TextView copyBtn = new TextView(this);
+        copyBtn.setText("КОПИРОВАТЬ ВЕСЬ ЛОГ");
+        copyBtn.setTextColor(0xFFE8A33D);
+        copyBtn.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        copyBtn.setGravity(android.view.Gravity.CENTER);
+        copyBtn.setPadding(20, 28, 20, 28);
+        copyBtn.setBackgroundResource(R.drawable.pill_button);
+        copyBtn.setOnClickListener(v -> copyFullLog(fullLog, logDir));
+
+        android.widget.LinearLayout box = new android.widget.LinearLayout(this);
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
+        android.widget.LinearLayout.LayoutParams bp = new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+        bp.setMargins(24, 16, 24, 8);
+        box.addView(copyBtn, bp);
+        box.addView(sv, new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
 
         androidx.appcompat.app.AlertDialog.Builder builder = new AlertDialog.Builder(this)
             .setTitle("Логи OpenXRay")
-            .setView(sv)
+            .setView(box)
             .setPositiveButton("Отправить ZIP", (dialog, which) -> {
                 File report = new File(logDir, "openxray_report.txt");
                 try (BufferedWriter writer = new BufferedWriter(new FileWriter(report, false))) {
-                    writer.write(content.toString());
+                    writer.write(fullLog);
                 } catch (Exception e) {
                     Toast.makeText(this, "Не удалось сохранить отчёт: " + e.getMessage(), Toast.LENGTH_LONG).show();
                     return;
@@ -913,6 +881,64 @@ public class LauncherActivity extends AppCompatActivity {
         }
         builder.setNegativeButton("Закрыть", null);
         builder.show();
+    }
+
+    /** Собирает ВЕСЬ лог (без обрезки по строкам) в один текст. */
+    private String buildFullLog(File logDir) {
+        StringBuilder c = new StringBuilder();
+        c.append("=== ОБЩИЙ ЛОГ OpenXRay ===\n");
+        c.append("Log directory: ").append(logDir.getAbsolutePath()).append("\n\n");
+        File engineLog = AppLog.findEngineLog(logDir);
+        appendWholeFile(c, "openxray_app.log (текущий сеанс)", new File(logDir, "openxray_app.log"));
+        appendWholeFile(c, "openxray_app.log.bkp (прошлый сеанс)", new File(logDir, "openxray_app.log.bkp"));
+        if (engineLog != null) {
+            appendWholeFile(c, engineLog.getName() + " (лог движка)", engineLog);
+            appendWholeFile(c, engineLog.getName().replaceAll("\\.log$", ".bkp") + " (лог движка, прошлый сеанс)",
+                    new File(engineLog.getParentFile(), engineLog.getName().replaceAll("\\.log$", ".bkp")));
+        } else {
+            c.append("=== [Лог движка] ===\nOpenXRay_*.log не найден: движок не дошёл до создания лога.\n\n");
+        }
+        appendWholeFile(c, "fsgame.ltx", new File(logDir, "fsgame.ltx"));
+        appendWholeFile(c, "frame_trace.log", new File(logDir, "frame_trace.log"));
+        appendWholeFile(c, "openxray_logcat.log", new File(logDir, "openxray_logcat.log"));
+        appendWholeFile(c, "openxray_logcat.log.bkp (прошлый сеанс)", new File(logDir, "openxray_logcat.log.bkp"));
+        String crashBuffer = readLogcatBuffer("crash");
+        if (crashBuffer != null && !crashBuffer.isEmpty()) {
+            c.append("=== [logcat -b crash (нативный краш)] ===\n").append(crashBuffer).append("\n");
+        }
+        return c.toString();
+    }
+
+    private void appendWholeFile(StringBuilder c, String title, File f) {
+        if (f == null || !f.exists() || f.length() == 0) return;
+        c.append("=== [").append(title).append("] ===\n");
+        String t = AppLog.readTextFile(f);
+        c.append(t != null ? t : "(не читается)").append("\n");
+    }
+
+    /** Сохраняет общий лог в openxray_full.log и кладёт его в буфер обмена целиком. */
+    private void copyFullLog(String full, File logDir) {
+        try (BufferedWriter w = new BufferedWriter(new FileWriter(new File(logDir, "openxray_full.log"), false))) {
+            w.write(full);
+        } catch (Exception ignored) {}
+        // Буфер обмена Android ограничен ~1 МБ; если лог больше, копируем самый свежий хвост.
+        final int LIMIT = 400000;
+        String text = full;
+        boolean cut = false;
+        if (text.length() > LIMIT) {
+            text = "[начало обрезано под лимит буфера, полный лог: " + logDir.getAbsolutePath()
+                    + "/openxray_full.log]\n" + text.substring(text.length() - LIMIT);
+            cut = true;
+        }
+        try {
+            ClipboardManager cb = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            cb.setPrimaryClip(ClipData.newPlainText("Логи OpenXRay", text));
+            Toast.makeText(this, cut ? "Скопирован хвост лога (полный в openxray_full.log)"
+                    : "Весь лог скопирован", Toast.LENGTH_LONG).show();
+        } catch (Throwable t) {
+            Toast.makeText(this, "Не удалось скопировать: " + t.getMessage()
+                    + ". Полный лог: openxray_full.log", Toast.LENGTH_LONG).show();
+        }
     }
 
     private void shareLogsZip(File logDir, File report) {
