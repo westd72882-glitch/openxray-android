@@ -185,8 +185,7 @@ void CUIFrameLineWnd::DrawElements() const
     if (!one_shader)
     {
         GEnv.UIRender->FlushPrimitive();
-        // total_tiles может быть 0 (узкая рамка): Lock(0 вершин) валит R_ASSERT, поэтому минимум 1 тайл
-        GEnv.UIRender->StartPrimitive(6 * (total_tiles ? total_tiles : 1), IUIRender::ptTriList, UI().m_currentPointType);
+        GEnv.UIRender->StartPrimitive(6 * total_tiles, IUIRender::ptTriList, UI().m_currentPointType);
     }
 
     // back
