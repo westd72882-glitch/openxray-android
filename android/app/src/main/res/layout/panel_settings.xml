@@ -35,16 +35,16 @@
                 android:textStyle="bold"
                 android:letterSpacing="0.14" />
 
-            <TextView
+            <ImageView
                 android:id="@+id/btn_settings_close"
                 android:layout_width="38dp"
                 android:layout_height="38dp"
                 android:layout_gravity="end"
                 android:background="@drawable/round_close"
-                android:gravity="center"
-                android:text="✕"
-                android:textColor="@color/text_main"
-                android:textSize="15sp" />
+                android:padding="10dp"
+                android:src="@drawable/ic_close"
+                android:tint="@color/text_main"
+                android:contentDescription="Закрыть" />
         </FrameLayout>
 
         <ScrollView
@@ -156,7 +156,10 @@
                     android:id="@+id/btn_edit_touch_layout"
                     style="@style/Pill"
                     android:layout_marginTop="10dp"
-                    android:text="✎ РАСПОЛОЖЕНИЕ КНОПОК В ИГРЕ" />
+                    android:drawableStart="@drawable/ic_edit"
+                    android:drawablePadding="8dp"
+                    android:drawableTint="@color/text_main"
+                    android:text="РАСПОЛОЖЕНИЕ КНОПОК В ИГРЕ" />
 
                 <!-- Лаунчер -->
                 <TextView style="@style/Sect" android:text="МЕНЮ ЛАУНЧЕРА" />
@@ -226,7 +229,10 @@
                         android:id="@+id/btn_support_dev"
                         style="@style/Pill"
                         android:layout_marginStart="8dp"
-                        android:text="♥ ПОДДЕРЖАТЬ"
+                        android:drawableStart="@drawable/ic_heart"
+                        android:drawablePadding="8dp"
+                        android:drawableTint="@color/amber_primary"
+                        android:text="ПОДДЕРЖАТЬ"
                         android:textColor="@color/amber_primary" />
                 </LinearLayout>
             </LinearLayout>

@@ -37,16 +37,16 @@
                 android:textStyle="bold"
                 android:letterSpacing="0.14" />
 
-            <TextView
+            <ImageView
                 android:id="@+id/btn_games_close"
                 android:layout_width="38dp"
                 android:layout_height="38dp"
                 android:layout_gravity="end"
                 android:background="@drawable/round_close"
-                android:gravity="center"
-                android:text="✕"
-                android:textColor="@color/text_main"
-                android:textSize="15sp" />
+                android:padding="10dp"
+                android:src="@drawable/ic_close"
+                android:tint="@color/text_main"
+                android:contentDescription="Закрыть" />
         </FrameLayout>
 
         <LinearLayout
