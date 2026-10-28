@@ -63,51 +63,52 @@ public class TouchLayoutConfig {
         ld.joyRelY = 0.72f;
         ld.joyRelRadius = 0.16f;
 
-        float baseRadius = 0.082f;
-        float smallRadius = 0.058f;
+        // Все кнопки одного размера
+        final float R = 0.062f;
 
         // 2. Primary Fire & Aim
-        ld.buttons.put("lmb_main", new ButtonPos("lmb_main", 0.90f, 0.85f, baseRadius * 1.35f));
-        ld.buttons.put("rmb_main", new ButtonPos("rmb_main", 0.78f, 0.85f, baseRadius * 1.15f));
-        ld.buttons.put("lmb_left", new ButtonPos("lmb_left", 0.16f, 0.44f, smallRadius * 1.30f));
+        ld.buttons.put("lmb_main", new ButtonPos("lmb_main", 0.90f, 0.85f, R));
+        ld.buttons.put("rmb_main", new ButtonPos("rmb_main", 0.78f, 0.85f, R));
+        ld.buttons.put("lmb_left", new ButtonPos("lmb_left", 0.16f, 0.44f, R));
 
         // 3. Q and E (Camera Turn / Lean)
-        ld.buttons.put("q", new ButtonPos("q", 0.07f, 0.44f, smallRadius * 1.15f));
-        ld.buttons.put("e", new ButtonPos("e", 0.25f, 0.44f, smallRadius * 1.15f));
+        ld.buttons.put("q", new ButtonPos("q", 0.07f, 0.44f, R));
+        ld.buttons.put("e", new ButtonPos("e", 0.25f, 0.44f, R));
 
         // 4. Action buttons (Right side)
-        ld.buttons.put("r", new ButtonPos("r", 0.91f, 0.63f, baseRadius * 0.90f));
-        ld.buttons.put("f", new ButtonPos("f", 0.81f, 0.68f, baseRadius * 0.90f));
+        ld.buttons.put("r", new ButtonPos("r", 0.91f, 0.63f, R));
+        ld.buttons.put("f", new ButtonPos("f", 0.81f, 0.68f, R));
         // Переключение типа патронов (wpn_next, клавиша Y) и подствола (wpn_func, клавиша V)
-        ld.buttons.put("ammo", new ButtonPos("ammo", 0.72f, 0.68f, smallRadius * 1.10f));
-        ld.buttons.put("gl", new ButtonPos("gl", 0.64f, 0.68f, smallRadius * 1.10f));
-        ld.buttons.put("jump", new ButtonPos("jump", 0.92f, 0.44f, baseRadius * 0.95f));
-        ld.buttons.put("crouch", new ButtonPos("crouch", 0.82f, 0.50f, baseRadius * 0.95f));
-        ld.buttons.put("shift", new ButtonPos("shift", 0.72f, 0.50f, baseRadius * 0.95f));
-        ld.buttons.put("sprint", new ButtonPos("sprint", 0.32f, 0.82f, smallRadius * 1.15f));
+        ld.buttons.put("ammo", new ButtonPos("ammo", 0.72f, 0.68f, R));
+        ld.buttons.put("gl", new ButtonPos("gl", 0.64f, 0.68f, R));
+        ld.buttons.put("jump", new ButtonPos("jump", 0.92f, 0.44f, R));
+        ld.buttons.put("crouch", new ButtonPos("crouch", 0.82f, 0.50f, R));
+        ld.buttons.put("shift", new ButtonPos("shift", 0.72f, 0.50f, R));
+        ld.buttons.put("sprint", new ButtonPos("sprint", 0.32f, 0.82f, R));
 
         // 5. Quick Medical Items (Medkit & Bandage)
-        ld.buttons.put("medkit", new ButtonPos("medkit", 0.29f, 0.67f, smallRadius * 1.10f));
-        ld.buttons.put("bandage", new ButtonPos("bandage", 0.37f, 0.67f, smallRadius * 1.10f));
+        ld.buttons.put("medkit", new ButtonPos("medkit", 0.29f, 0.67f, R));
+        ld.buttons.put("bandage", new ButtonPos("bandage", 0.37f, 0.67f, R));
 
         // 6. Weapon Selection 1-6 (Bottom Center)
-        ld.buttons.put("wpn_1", new ButtonPos("wpn_1", 0.28f, 0.92f, smallRadius * 0.92f));
-        ld.buttons.put("wpn_2", new ButtonPos("wpn_2", 0.36f, 0.92f, smallRadius * 0.92f));
-        ld.buttons.put("wpn_3", new ButtonPos("wpn_3", 0.44f, 0.92f, smallRadius * 0.92f));
-        ld.buttons.put("wpn_4", new ButtonPos("wpn_4", 0.52f, 0.92f, smallRadius * 0.92f));
-        ld.buttons.put("wpn_5", new ButtonPos("wpn_5", 0.60f, 0.92f, smallRadius * 0.92f));
-        ld.buttons.put("wpn_6", new ButtonPos("wpn_6", 0.68f, 0.92f, smallRadius * 0.92f));
+        ld.buttons.put("wpn_1", new ButtonPos("wpn_1", 0.28f, 0.92f, R));
+        ld.buttons.put("wpn_2", new ButtonPos("wpn_2", 0.36f, 0.92f, R));
+        ld.buttons.put("wpn_3", new ButtonPos("wpn_3", 0.44f, 0.92f, R));
+        ld.buttons.put("wpn_4", new ButtonPos("wpn_4", 0.52f, 0.92f, R));
+        ld.buttons.put("wpn_5", new ButtonPos("wpn_5", 0.60f, 0.92f, R));
+        ld.buttons.put("wpn_6", new ButtonPos("wpn_6", 0.68f, 0.92f, R));
 
         // 7. Top Bar System / UI Buttons
-        float topY = smallRadius * 1.6f;
-        ld.buttons.put("esc", new ButtonPos("esc", 0.05f, topY, smallRadius));
-        ld.buttons.put("inv", new ButtonPos("inv", 0.35f, topY, smallRadius));
-        ld.buttons.put("pda", new ButtonPos("pda", 0.48f, topY, smallRadius));
-        ld.buttons.put("torch", new ButtonPos("torch", 0.61f, topY, smallRadius));
+        float topY = R * 1.25f;
+        ld.buttons.put("shop", new ButtonPos("shop", 0.22f, topY, R));
+        ld.buttons.put("esc", new ButtonPos("esc", 0.05f, topY, R));
+        ld.buttons.put("inv", new ButtonPos("inv", 0.35f, topY, R));
+        ld.buttons.put("pda", new ButtonPos("pda", 0.48f, topY, R));
+        ld.buttons.put("torch", new ButtonPos("torch", 0.61f, topY, R));
         // Детектор артефактов — видна только в CoP/CS (см. TouchOverlayView.setDetectorEnabled).
-        ld.buttons.put("detector", new ButtonPos("detector", 0.72f, topY, smallRadius));
-        ld.buttons.put("qsave", new ButtonPos("qsave", 0.85f, topY, smallRadius));
-        ld.buttons.put("qload", new ButtonPos("qload", 0.95f, topY, smallRadius));
+        ld.buttons.put("detector", new ButtonPos("detector", 0.72f, topY, R));
+        ld.buttons.put("qsave", new ButtonPos("qsave", 0.85f, topY, R));
+        ld.buttons.put("qload", new ButtonPos("qload", 0.95f, topY, R));
 
         return ld;
     }

@@ -475,6 +475,11 @@ public class OpenXRayActivity extends SDLActivity {
             } else {
                 AppLog.i("FileSystem", "No gamedata in APK assets, using external gamedata.");
             }
+            mKitGameDir = dir;
+            if ("soc".equals(gameMode)) {
+                // Список купленного для скрипта kit_shop.script (выдача при новой игре).
+                KitStore.writeItemsFile(this, dir);
+            }
             File targetFsgame = new File(dir, "fsgame.ltx");
             installFsgameConfig(resBase, targetFsgame);
             AppLog.i("FileSystem", "Asset check finished.");
@@ -764,6 +769,16 @@ public class OpenXRayActivity extends SDLActivity {
         }
     }
 
+    private volatile File mKitGameDir;
+    private ShopDialog mShopDialog;
+
+    private void openShop() {
+        if (isFinishing() || isDestroyed()) return;
+        if (mShopDialog != null && mShopDialog.isShowing()) return;
+        mShopDialog = new ShopDialog(this, mKitGameDir);
+        mShopDialog.show();
+    }
+
     private void setupTouchControls() {
         if (mLayout == null) {
             AppLog.w("TouchControls", "mLayout is null, cannot setup touch overlay");
@@ -784,6 +799,10 @@ public class OpenXRayActivity extends SDLActivity {
             boolean detector = "cop".equals(mode) || "cs".equals(mode);
             AppLog.i("TouchControls", "Detector button enabled: " + detector + " (mode=" + mode + ")");
             mTouchOverlay.setDetectorEnabled(detector);
+            // Магазин Киткоинов: предметы SoC, поэтому только в Тени Чернобыля.
+            boolean soc = mode == null || "soc".equals(mode);
+            mTouchOverlay.setShopEnabled(soc);
+            mTouchOverlay.setShopListener(this::openShop);
             mTouchOverlay.setOverlayAlpha(opacity);
             mTouchOverlay.setControlsScale(scale);
             mTouchOverlay.setLookSensitivity(sens);

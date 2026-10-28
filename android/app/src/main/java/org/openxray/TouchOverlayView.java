@@ -155,6 +155,18 @@ public class TouchOverlayView extends View {
     // Artifact detector button (CoP/Clear Sky only — SoC has no detector slot).
     private boolean mDetectorEnabled = false;
 
+    // Кнопка магазина Киткоинов (только Тень Чернобыля).
+    public interface ShopListener { void onShopClicked(); }
+    private boolean mShopEnabled = false;
+    private ShopListener mShopListener;
+
+    public void setShopListener(ShopListener l) { this.mShopListener = l; }
+
+    public void setShopEnabled(boolean enabled) {
+        this.mShopEnabled = enabled;
+        reloadLayout();
+    }
+
     public void setDetectorEnabled(boolean enabled) {
         this.mDetectorEnabled = enabled;
         reloadLayout();
@@ -381,6 +393,9 @@ public class TouchOverlayView extends View {
         addButtonFromConfig(layout, "wpn_6", "6", KeyEvent.KEYCODE_6, TYPE_WEAPON);
 
         // 7. Top Bar System / UI Buttons
+        if (mShopEnabled) {
+            addButtonFromConfig(layout, "shop", "SHOP", KeyEvent.KEYCODE_UNKNOWN, TYPE_DEFAULT);
+        }
         addButtonFromConfig(layout, "esc", "ESC", KeyEvent.KEYCODE_ESCAPE, TYPE_DEFAULT);
         addButtonFromConfig(layout, "inv", "INV", KeyEvent.KEYCODE_I, TYPE_DEFAULT);
         addButtonFromConfig(layout, "pda", "PDA", KeyEvent.KEYCODE_P, TYPE_DEFAULT);
@@ -629,6 +644,10 @@ public class TouchOverlayView extends View {
             } else {
                 mCurrentMouseButtonState &= ~MotionEvent.BUTTON_SECONDARY;
                 SDLActivity.onNativeMouse(mCurrentMouseButtonState, MotionEvent.ACTION_UP, 0, 0, true);
+            }
+        } else if ("shop".equals(btn.id)) {
+            if (pressed && mShopListener != null) {
+                post(() -> mShopListener.onShopClicked());
             }
         } else {
             if (pressed) {

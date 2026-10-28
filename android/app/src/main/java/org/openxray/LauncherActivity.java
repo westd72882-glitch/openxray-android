@@ -181,6 +181,18 @@ public class LauncherActivity extends AppCompatActivity {
         } catch (Exception ignored) {}
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        updateKitcoins();
+    }
+
+    /** Показывает баланс Киткоинов (хранится в данных приложения, на старте 5). */
+    private void updateKitcoins() {
+        TextView t = findViewById(R.id.text_kitcoins);
+        if (t != null) t.setText(String.valueOf(KitStore.getCoins(this)));
+    }
+
     private void showGamesPanel() {
         mPanelSettings.setVisibility(View.GONE);
         mPanelGames.setVisibility(View.VISIBLE);
@@ -462,6 +474,7 @@ public class LauncherActivity extends AppCompatActivity {
 
         if (mGamePath == null || mGamePath.isEmpty()) {
             mTextPathStatus.setText("Путь не указан");
+            setStatusIcon(mTextPathStatus, 0, 0);
             mTextPathStatus.setTextColor(red);
             mTextSelectedGame.setText(gameTitle(mGameMode));
             mTextMainStatus.setText("Путь к играм не указан. Откройте «Выбор игры».");
@@ -475,11 +488,13 @@ public class LauncherActivity extends AppCompatActivity {
             int n = countArchives(MODES[i]);
             TextView st = findViewById(statusIds[i]);
             if (n > 0) {
-                st.setText("✓ Файлы найдены, архивов: " + n);
+                st.setText("Файлы найдены, архивов: " + n);
                 st.setTextColor(green);
+                setStatusIcon(st, R.drawable.ic_check, green);
             } else {
-                st.setText("✗ Файлов нет: положите игру в " + new File(mGamePath, MODES[i]).getAbsolutePath());
+                st.setText("Файлов нет: положите игру в " + new File(mGamePath, MODES[i]).getAbsolutePath());
                 st.setTextColor(ContextCompat.getColor(this, R.color.text_muted));
+                setStatusIcon(st, R.drawable.ic_cross, ContextCompat.getColor(this, R.color.text_muted));
             }
             findViewById(cardIds[i]).setBackgroundResource(
                     MODES[i].equals(mGameMode) ? R.drawable.game_card_selected : R.drawable.game_card);
@@ -489,18 +504,37 @@ public class LauncherActivity extends AppCompatActivity {
         int n = countArchives(mGameMode);
         mTextSelectedGame.setText(gameTitle(mGameMode));
         if (n > 0) {
-            String msg = "✓ Игра найдена (архивов: " + n + ")";
+            String msg = "Игра найдена (архивов: " + n + ")";
+            setStatusIcon(mTextPathStatus, R.drawable.ic_check, green);
             mTextPathStatus.setText(msg + "\n" + dir.getAbsolutePath());
             mTextPathStatus.setTextColor(green);
             mTextMainStatus.setText("Всё готово. Сложность выбирается в меню игры.");
             tintDot(green);
         } else {
-            mTextPathStatus.setText("✗ Нет файлов игры в " + dir.getAbsolutePath()
+            setStatusIcon(mTextPathStatus, R.drawable.ic_cross, red);
+            mTextPathStatus.setText("Нет файлов игры в " + dir.getAbsolutePath()
                     + "\nСкопируйте туда gamedata.db* и папку gamedata.");
             mTextPathStatus.setTextColor(red);
             mTextMainStatus.setText("Файлы игры не найдены. Откройте «Выбор игры».");
             tintDot(red);
         }
+    }
+
+    /** Маленькая векторная иконка слева от текста статуса (вместо символов ✓ ✗ ⚠). */
+    private void setStatusIcon(TextView tv, int resId, int color) {
+        if (tv == null) return;
+        if (resId == 0) {
+            tv.setCompoundDrawablesRelative(null, null, null, null);
+            return;
+        }
+        android.graphics.drawable.Drawable d = ContextCompat.getDrawable(this, resId);
+        if (d == null) return;
+        d = d.mutate();
+        d.setTint(color);
+        int sz = Math.round(14 * getResources().getDisplayMetrics().density);
+        d.setBounds(0, 0, sz, sz);
+        tv.setCompoundDrawablesRelative(d, null, null, null);
+        tv.setCompoundDrawablePadding(Math.round(6 * getResources().getDisplayMetrics().density));
     }
 
     private void tintDot(int color) {
@@ -1539,10 +1573,12 @@ public class LauncherActivity extends AppCompatActivity {
             if ("angle_vulkan".equals(item.id) || "angle_gles".equals(item.id)) {
                 mTextRenderBackendStatus.setVisibility(View.VISIBLE);
                 if (isAngleAvailable()) {
-                    mTextRenderBackendStatus.setText("✓ Библиотеки ANGLE найдены в APK");
+                    mTextRenderBackendStatus.setText("Библиотеки ANGLE найдены в APK");
+                    setStatusIcon(mTextRenderBackendStatus, R.drawable.ic_check, ContextCompat.getColor(this, R.color.status_green));
                     mTextRenderBackendStatus.setTextColor(ContextCompat.getColor(this, R.color.status_green));
                 } else {
-                    mTextRenderBackendStatus.setText("⚠ Библиотеки ANGLE не найдены в APK: будет использован нативный OpenGL ES.");
+                    mTextRenderBackendStatus.setText("Библиотеки ANGLE не найдены в APK: будет использован нативный OpenGL ES.");
+                    setStatusIcon(mTextRenderBackendStatus, R.drawable.ic_warning, ContextCompat.getColor(this, R.color.amber_primary));
                     mTextRenderBackendStatus.setTextColor(ContextCompat.getColor(this, R.color.amber_primary));
                 }
             } else {
