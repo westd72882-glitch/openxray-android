@@ -42,6 +42,9 @@ void* _VertexStream::Lock(u32 vl_Count, u32 Stride, u32& vOffset)
 #endif
 
     // Ensure there is enough space in the VB for this data
+    // Пустой запрос (0 вершин) не должен ронять игру: запрашиваем минимум 1 вершину
+    if (vl_Count == 0)
+        vl_Count = 1;
     const u32 bytes_need = vl_Count * Stride;
     R_ASSERT2((bytes_need <= mSize) && vl_Count,
         make_string("bytes_need = %d, mSize = %d, vl_Count = %d", bytes_need, mSize, vl_Count));
