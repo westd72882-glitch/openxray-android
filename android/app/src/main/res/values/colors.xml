@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="bg_dark">#0B0E0A</color>
-    <color name="bg_card">#161A11</color>
-    <color name="bg_card_border">#3A4029</color>
-    <color name="bg_input">#0F120C</color>
-    <color name="amber_primary">#D9A441</color>
-    <color name="amber_dark">#A8652A</color>
+    <color name="bg_dark">#0B0B0B</color>
+    <color name="bg_card">#171717</color>
+    <color name="bg_card_border">#363431</color>
+    <color name="bg_input">#101010</color>
+    <color name="amber_primary">#E8A33D</color>
+    <color name="amber_dark">#B5701F</color>
     <color name="status_green">#8DB255</color>
     <color name="status_red">#C8553D</color>
-    <color name="text_main">#D2CDBB</color>
-    <color name="text_muted">#80836F</color>
-    <color name="scrim">#D9050605</color>
-    <color name="olive">#7A8260</color>
+    <color name="text_main">#DAD7CF</color>
+    <color name="text_muted">#8A8780</color>
+    <color name="scrim">#D9050505</color>
+    <color name="olive">#7A7C70</color>
 </resources>
