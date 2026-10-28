@@ -162,13 +162,15 @@
                     android:text="РАСПОЛОЖЕНИЕ КНОПОК В ИГРЕ" />
 
                 <!-- Лаунчер -->
-                <TextView style="@style/Sect" android:text="МЕНЮ ЛАУНЧЕРА" />
+                <TextView style="@style/Sect" android:visibility="gone" android:text="МЕНЮ ЛАУНЧЕРА" />
                 <TextView
                     android:id="@+id/label_menu_scale"
+                    android:visibility="gone"
                     style="@style/Lbl"
                     android:text="Размер круглых кнопок: 100%" />
                 <SeekBar
                     android:id="@+id/seek_menu_scale"
+                    android:visibility="gone"
                     style="@style/Seek"
                     android:max="140"
                     android:progress="100" />
@@ -177,7 +179,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:orientation="horizontal">
+                    android:orientation="horizontal"
+                    android:visibility="gone">
 
                     <Button
                         android:id="@+id/btn_edit_menu_layout"

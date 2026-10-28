@@ -10,104 +10,101 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Название и выбранная игра (слева) -->
-    <LinearLayout
-        android:layout_width="wrap_content"
+    <!-- Левая панель: название, выбранная игра и кнопки меню -->
+    <ScrollView
+        android:layout_width="300dp"
         android:layout_height="match_parent"
         android:layout_gravity="start"
-        android:gravity="center_vertical"
-        android:orientation="vertical"
-        android:paddingStart="48dp"
-        android:paddingEnd="16dp">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="ПОРТ ДВИЖКА X-RAY ДЛЯ ANDROID"
-            android:textColor="@color/text_muted"
-            android:textSize="11sp"
-            android:letterSpacing="0.2" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="OPENXRAY"
-            android:textColor="@color/amber_primary"
-            android:textSize="46sp"
-            android:textStyle="bold"
-            android:letterSpacing="0.12" />
-
-        <View
-            android:layout_width="120dp"
-            android:layout_height="2dp"
-            android:layout_marginTop="10dp"
-            android:layout_marginBottom="14dp"
-            android:background="@color/amber_dark" />
+        android:background="@drawable/launcher_panel"
+        android:fillViewport="true"
+        android:overScrollMode="never">
 
         <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
             android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <View
-                android:id="@+id/dot_status"
-                android:layout_width="9dp"
-                android:layout_height="9dp"
-                android:background="@drawable/status_dot" />
+            android:orientation="vertical"
+            android:paddingStart="32dp"
+            android:paddingTop="16dp"
+            android:paddingEnd="28dp"
+            android:paddingBottom="16dp">
 
             <TextView
-                android:id="@+id/text_selected_game"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:text="Зов Припяти"
-                android:textColor="@color/text_main"
-                android:textSize="17sp"
-                android:textStyle="bold" />
+                android:text="OPENXRAY"
+                android:textColor="@color/amber_primary"
+                android:textSize="34sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.1" />
+
+            <View
+                android:layout_width="64dp"
+                android:layout_height="3dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="14dp"
+                android:background="@color/amber_primary" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <View
+                    android:id="@+id/dot_status"
+                    android:layout_width="8dp"
+                    android:layout_height="8dp"
+                    android:background="@drawable/status_dot" />
+
+                <TextView
+                    android:id="@+id/text_selected_game"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:text="Зов Припяти"
+                    android:textColor="@color/text_main"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/text_main_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:maxLines="2"
+                android:text=""
+                android:textColor="@color/text_muted"
+                android:textSize="11sp" />
+
+            <org.openxray.MenuButtonsLayout
+                android:id="@+id/menu_layer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp" />
         </LinearLayout>
-
-        <TextView
-            android:id="@+id/text_main_status"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:maxWidth="360dp"
-            android:text=""
-            android:textColor="@color/text_muted"
-            android:textSize="12sp" />
-    </LinearLayout>
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|start"
-        android:layout_marginStart="48dp"
-        android:layout_marginBottom="14dp"
-        android:text="Автор порта не связан с GSC Game World. Лицензия MIT.\nФайлы игры в приложение не входят."
-        android:textColor="#5C5F4E"
-        android:textSize="10sp" />
+    </ScrollView>
 
     <!-- Баланс Киткоинов -->
     <LinearLayout
         android:id="@+id/chip_kitcoins"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
-        android:layout_marginStart="48dp"
+        android:layout_gravity="top|end"
         android:layout_marginTop="14dp"
-        android:background="@drawable/panel_bg"
+        android:layout_marginEnd="20dp"
+        android:background="@drawable/chip_flat"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingStart="10dp"
         android:paddingTop="6dp"
-        android:paddingEnd="16dp"
+        android:paddingEnd="14dp"
         android:paddingBottom="6dp">
 
         <ImageView
-            android:layout_width="24dp"
-            android:layout_height="24dp"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
             android:src="@drawable/ic_kitcoin"
             android:contentDescription="Киткоины" />
 
@@ -120,57 +117,24 @@
             android:textColor="@color/amber_primary"
             android:textSize="16sp"
             android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
-            android:text="Киткоины"
-            android:textColor="@color/text_muted"
-            android:textSize="11sp" />
     </LinearLayout>
 
-    <!-- Круглые кнопки меню -->
-    <org.openxray.MenuButtonsLayout
-        android:id="@+id/menu_layer"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" />
-
-    <!-- Панель режима расположения кнопок -->
+    <!-- Старая панель перетаскивания кнопок: не показывается, id нужны коду -->
     <LinearLayout
         android:id="@+id/edit_bar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="14dp"
-        android:background="@drawable/panel_bg"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="20dp"
-        android:paddingTop="8dp"
-        android:paddingEnd="10dp"
-        android:paddingBottom="8dp"
         android:visibility="gone">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Перетащите кнопки на нужное место"
-            android:textColor="@color/text_main"
-            android:textSize="13sp" />
 
         <Button
             android:id="@+id/btn_edit_reset"
-            style="@style/Pill"
-            android:layout_marginStart="14dp"
-            android:text="СБРОС" />
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
 
         <Button
             android:id="@+id/btn_edit_done"
-            style="@style/Pill"
-            android:layout_marginStart="8dp"
-            android:text="ГОТОВО"
-            android:textColor="@color/amber_primary" />
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
     </LinearLayout>
 
     <include layout="@layout/panel_games" />
